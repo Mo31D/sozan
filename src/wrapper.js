@@ -24,8 +24,19 @@ export default {
         ok: true,
         app: env.APP_NAME || 'Sozan Tutor OS',
         version: '4.4',
-        mutation_dedupe: true
+        mutation_dedupe: true,
+        receipt_rebalance: true
       }), { status: 200, headers: JSON_HEADERS });
+    }
+
+    const receiptMutation = url.pathname.match(/^\/api\/v4\/receipts\/(\d+)$/);
+    if (receiptMutation && ['PATCH', 'DELETE'].includes(request.method)) {
+      return handleReceiptMutation(request, env, ctx, Number(receiptMutation[1]));
+    }
+
+    const receiptRestore = url.pathname.match(/^\/api\/v4\/restore\/receipt\/(\d+)$/);
+    if (receiptRestore && request.method === 'POST') {
+      return handleReceiptRestore(request, env, ctx, Number(receiptRestore[1]));
     }
 
     if (url.pathname === '/api/v4/reset-data' && request.method === 'POST') {
@@ -41,6 +52,79 @@ export default {
     return dedupeCreate(request, env, ctx, url);
   }
 };
+
+async function handleReceiptMutation(request, env, ctx, receiptId) {
+  const before = await env.DB.prepare(`SELECT student_id FROM student_receipts_v4 WHERE id=?1`).bind(receiptId).first();
+  const response = await app.fetch(request, env, ctx);
+  if (!response.ok) return response;
+
+  const after = await env.DB.prepare(`SELECT student_id FROM student_receipts_v4 WHERE id=?1`).bind(receiptId).first();
+  const students = new Set([Number(before?.student_id || 0), Number(after?.student_id || 0)].filter(Boolean));
+  for (const studentId of students) await rebalanceStudentReceipts(env.DB, studentId);
+  return response;
+}
+
+async function handleReceiptRestore(request, env, ctx, receiptId) {
+  const response = await app.fetch(request, env, ctx);
+  if (!response.ok) return response;
+  const receipt = await env.DB.prepare(`SELECT student_id FROM student_receipts_v4 WHERE id=?1`).bind(receiptId).first();
+  if (receipt?.student_id) await rebalanceStudentReceipts(env.DB, Number(receipt.student_id));
+  return response;
+}
+
+async function rebalanceStudentReceipts(db, studentId) {
+  const receipts = await db.prepare(`
+    SELECT id, amount_pence
+    FROM student_receipts_v4
+    WHERE student_id=?1 AND deleted_at IS NULL
+    ORDER BY received_at, id
+  `).bind(studentId).all();
+
+  const occurrences = await db.prepare(`
+    SELECT o.id, o.earned_pence,
+      COALESCE((
+        SELECT SUM(p.amount_pence)
+        FROM payments_v3 p
+        WHERE p.occurrence_id=o.id AND p.reversed_at IS NULL
+      ),0) direct_paid_pence
+    FROM session_occurrences_v3 o
+    JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+    WHERE r.student_id=?1 AND o.status='completed'
+    ORDER BY COALESCE(o.rescheduled_to_date,o.session_date), o.id
+  `).bind(studentId).all();
+
+  const due = (occurrences.results || []).map(o => ({
+    id: Number(o.id),
+    remaining: Math.max(0, Number(o.earned_pence || 0) - Number(o.direct_paid_pence || 0))
+  }));
+
+  const allocations = [];
+  let occurrenceIndex = 0;
+  for (const receipt of receipts.results || []) {
+    let remaining = Number(receipt.amount_pence || 0);
+    while (remaining > 0 && occurrenceIndex < due.length) {
+      while (occurrenceIndex < due.length && due[occurrenceIndex].remaining <= 0) occurrenceIndex++;
+      if (occurrenceIndex >= due.length) break;
+      const amount = Math.min(remaining, due[occurrenceIndex].remaining);
+      if (amount > 0) {
+        allocations.push({ receiptId: Number(receipt.id), occurrenceId: due[occurrenceIndex].id, amount });
+        remaining -= amount;
+        due[occurrenceIndex].remaining -= amount;
+      }
+    }
+  }
+
+  const statements = [
+    db.prepare(`DELETE FROM receipt_allocations_v4 WHERE receipt_id IN (SELECT id FROM student_receipts_v4 WHERE student_id=?1)`).bind(studentId)
+  ];
+  for (const a of allocations) {
+    statements.push(
+      db.prepare(`INSERT INTO receipt_allocations_v4(receipt_id,occurrence_id,amount_pence) VALUES(?1,?2,?3)`)
+        .bind(a.receiptId, a.occurrenceId, a.amount)
+    );
+  }
+  await db.batch(statements);
+}
 
 function isProtectedCreate(request, url) {
   return request.method === 'POST' && CREATE_ROUTES.has(url.pathname);
@@ -85,7 +169,6 @@ async function dedupeCreate(request, env, ctx, url) {
   try {
     const response = await app.fetch(request, env, ctx);
 
-    // Validation/auth/server failures must remain retryable.
     if (!response.ok) {
       await env.DB.prepare(`DELETE FROM mutation_dedupe_v1 WHERE dedupe_key=?1`).bind(fingerprint).run();
       return response;
