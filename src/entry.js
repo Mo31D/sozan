@@ -1,4 +1,4 @@
-import app,{ensureMonthlyDuesThroughMonth,rebalanceStudentsWithMonthly} from './billing.js';
+import app,{ensureMonthlyDuesThroughMonth,rebalanceStudentsWithMonthly} from './billing-guard.js';
 
 const JSON_HEADERS={'content-type':'application/json; charset=utf-8'};
 const UI_SCRIPTS='<script src="/loading-view.js"></script><script type="module" src="/schedule-view.js"></script><script type="module" src="/billing-view.js"></script><script src="/billing-dialog-sync.js"></script><script type="module" src="/reports-view.js"></script>';
