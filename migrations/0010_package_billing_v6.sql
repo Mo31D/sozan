@@ -53,10 +53,13 @@ CREATE INDEX IF NOT EXISTS idx_package_occ_cycle_v6 ON package_cycle_occurrences
 CREATE INDEX IF NOT EXISTS idx_package_alloc_receipt_v6 ON package_receipt_allocations_v6(receipt_id);
 CREATE INDEX IF NOT EXISTS idx_package_alloc_cycle_v6 ON package_receipt_allocations_v6(cycle_id);
 
--- Preserve the intent of any schedules already marked monthly, but reinterpret the
--- saved amount as an 8-lesson package rather than a calendar-month subscription.
+-- Preserve the intent of schedules already marked "monthly", but do NOT convert
+-- the recurring-session rows here. The V6 runtime first turns already-completed
+-- monthly lessons into package progress (1/8, 2/8, ...), then converts the schedule.
+-- This ordering prevents losing attendance recorded during the short monthly trial.
 INSERT INTO student_billing_v6(student_id,billing_mode,package_size,package_price_pence,cycle_anchor_date)
-SELECT r.student_id,'package',8,MAX(r.price_pence),date('now')
+SELECT r.student_id,'package',8,MAX(r.price_pence),
+       COALESCE(MIN(r.billing_start_month) || '-01', date('now'))
 FROM recurring_sessions_v3 r
 WHERE r.active=1 AND r.student_id IS NOT NULL AND r.price_type='monthly'
 GROUP BY r.student_id
@@ -64,6 +67,7 @@ ON CONFLICT(student_id) DO UPDATE SET
   billing_mode='package',
   package_size=8,
   package_price_pence=excluded.package_price_pence,
+  cycle_anchor_date=MIN(student_billing_v6.cycle_anchor_date,excluded.cycle_anchor_date),
   updated_at=CURRENT_TIMESTAMP;
 
 INSERT INTO student_billing_v6(student_id,billing_mode,package_size,package_price_pence,cycle_anchor_date)
@@ -71,18 +75,3 @@ SELECT s.id,'per_session',8,0,date('now')
 FROM students_v3 s
 WHERE s.active=1 AND s.deleted_at IS NULL
 ON CONFLICT(student_id) DO NOTHING;
-
--- Stop the legacy worker from treating those schedules as calendar-month plans.
--- V6 owns package accounting from this migration onward.
-UPDATE recurring_sessions_v3
-SET price_type='per_session',
-    price_pence=CASE
-      WHEN student_id IS NOT NULL AND EXISTS(
-        SELECT 1 FROM student_billing_v6 b
-        WHERE b.student_id=recurring_sessions_v3.student_id AND b.billing_mode='package'
-      )
-      THEN CAST(ROUND((SELECT b.package_price_pence*1.0/b.package_size FROM student_billing_v6 b WHERE b.student_id=recurring_sessions_v3.student_id),0) AS INTEGER)
-      ELSE price_pence
-    END,
-    updated_at=CURRENT_TIMESTAMP
-WHERE price_type='monthly';
