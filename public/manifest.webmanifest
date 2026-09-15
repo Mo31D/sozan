@@ -1,11 +1,11 @@
 {
   "name": "مساعد سوزان",
   "short_name": "سوزان",
-  "description": "تنظيم الحصص والتحصيل والمصروفات بشكل بسيط وواضح",
+  "description": "تنظيم حصص سوزان ودخلها ومصروفاتها والتحصيل بشكل بسيط",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#f7f5f3",
-  "theme_color": "#725a8e",
+  "background_color": "#f8f5fb",
+  "theme_color": "#7d5ca7",
   "dir": "rtl",
   "lang": "ar",
   "icons": [

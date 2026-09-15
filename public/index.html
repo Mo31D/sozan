@@ -1,2 +1,264 @@
 <!doctype html>
-<html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=/index.html"></head><body></body></html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#f8f5fb" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>مساعد سوزان</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="loginView" class="login-shell hidden">
+    <form id="loginForm" class="login-card">
+      <div class="brand-bubble">س</div>
+      <p class="kicker">مساعد سوزان</p>
+      <h1>دخول بسيط وآمن</h1>
+      <p class="subtle">اكتبي رمز الدخول.</p>
+      <input id="passcode" type="password" autocomplete="current-password" placeholder="رمز الدخول" required />
+      <button class="btn primary wide" type="submit">دخول</button>
+      <div id="loginError" class="error-text"></div>
+    </form>
+  </div>
+
+  <div id="appView" class="app-shell hidden">
+    <header class="topbar">
+      <div><p class="kicker">مساعد سوزان</p><h1 id="pageTitle">اليوم</h1></div>
+      <div class="top-actions">
+        <button id="activityBtn" class="icon-btn" aria-label="آخر النشاط" title="آخر النشاط">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7M3 4v5h5M12 7v5l3 2"/></svg>
+        </button>
+        <button id="logoutBtn" class="icon-btn" aria-label="تسجيل الخروج">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5M15 12H3M14 3h5a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-5"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main>
+      <section id="view-today" class="view active">
+        <div class="hero-card compact-hero">
+          <div class="hero-top"><div><p id="greetingText" class="hero-kicker">صباح الخير يا سوزان</p><p id="todayDateLabel" class="hero-label"></p><p class="hero-label">المتبقي من اللي قبضتيه هذا الشهر</p></div><span class="soft-icon">✦</span></div>
+          <div id="monthLeft" class="hero-value">0 ج</div>
+          <div class="hero-split"><div><span>قبضتي</span><strong id="receivedValue">0 ج</strong></div><div><span>صرفتي</span><strong id="spentValue">0 ج</strong></div></div>
+        </div>
+
+        <div class="quick-row">
+          <button id="quickReceiptBtn" class="quick-card primary-quick"><span class="quick-plus">+</span><div><strong>قبضت فلوس</strong><small>من طالب / ولي أمر</small></div></button>
+          <button id="quickExpenseBtn" class="quick-card"><span class="quick-plus">−</span><div><strong>مصروف</strong><small>شخصي أو شغل</small></div></button>
+        </div>
+
+        <button id="outstandingCard" class="outstanding-card">
+          <div><span class="card-label">لسه ليكي</span><strong id="outstandingValue">0 ج</strong></div>
+          <span id="outstandingCount">تمام</span>
+        </button>
+
+        <div class="section-title-row"><div><p class="kicker">اليوم</p><h2>حصصك</h2></div></div>
+        <div id="todaySessions" class="session-list"></div>
+      </section>
+
+      <section id="view-money" class="view">
+        <div class="section-title-row">
+          <div><p class="kicker">صورة الشهر</p><h2>فلوسي</h2></div>
+          <button id="moneyReceiptBtn" class="mini-action">+ قبضت فلوس</button>
+        </div>
+        <div class="money-grid">
+          <div class="metric-card"><span>استحقّيتي</span><strong id="earnedValue">0 ج</strong></div>
+          <div class="metric-card"><span>قبضتي</span><strong id="moneyReceivedValue">0 ج</strong></div>
+          <div class="metric-card"><span>صرفتي</span><strong id="moneySpentValue">0 ج</strong></div>
+          <div class="metric-card accent"><span>لسه ليكي</span><strong id="moneyOutstandingValue">0 ج</strong></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><p class="kicker">التحصيل</p><h3>مين دفع ومين لسه؟</h3></div><button id="showAllStudentsBtn" class="text-btn">عرض الكل</button></div>
+          <div id="studentCollectionList" class="student-list"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><p class="kicker">آخر الحركات</p><h3>كل حاجة في مكانها</h3></div><button id="showActivityBtn" class="text-btn">عرض الكل</button></div>
+          <div id="recentActivity" class="activity-list compact"></div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><div><p class="kicker">الإنفاق</p><h3>فلوسك راحت فين؟</h3></div><button id="moneyExpenseBtn" class="text-btn">+ مصروف</button></div>
+          <div id="expenseBreakdown" class="breakdown-list"></div>
+        </div>
+
+        <div class="panel slim-panel"><button id="otherIncomeBtn" class="row-action"><span>دخل غير مرتبط بحصة</span><strong>+ دخل آخر</strong></button></div>
+      </section>
+
+      <section id="view-schedule" class="view">
+        <div class="section-title-row"><div><p class="kicker">مرة واحدة</p><h2>جدولي</h2></div><button id="addSessionBtn" class="mini-action">+ طالب / مجموعة</button></div>
+        <div class="hint-card">أضيفي الطالب أو المجموعة مرة واحدة. التعديل هنا يغيّر المواعيد القادمة فقط؛ نقل حصة واحدة يتم من «اليوم».</div>
+        <div id="scheduleList" class="schedule-list"></div>
+      </section>
+
+      <section id="view-me" class="view">
+        <div class="section-title-row"><div><p class="kicker">صورة أوضح</p><h2>أنا</h2></div></div>
+        <div class="panel">
+          <div class="panel-head"><div><p class="kicker">محتاج مراجعة</p><h3>مركز التصحيح</h3></div><button id="openActivityFromReview" class="text-btn">كل النشاط</button></div>
+          <div id="reviewList" class="review-list"></div>
+        </div>
+        <div class="panel"><div class="panel-head"><div><p class="kicker">ملاحظات ذكية</p><h3>إيه اللي محتاج انتباهك؟</h3></div></div><div id="insightsList" class="insights-list"></div></div>
+        <div class="cash-card panel"><div><p class="kicker">مطابقة الفلوس</p><h3>المفروض معاكي دلوقتي</h3><strong id="expectedBalanceValue" class="cash-value">0 ج</strong><p class="subtle">حسب كل اللي قبضتيه ناقص كل المصروفات المسجلة.</p></div><button id="cashCheckBtn" class="btn primary">أقولك الموجود فعليًا</button><div id="lastCashCheck" class="cash-result"></div></div>
+        <details class="panel settings-panel"><summary>إعدادات البداية</summary><form id="settingsForm" class="stack-form"><label>الرصيد عند بداية استخدام البرنامج<input name="opening_balance" type="number" step="0.01" /></label><label>الاسم الظاهر<input name="sozan_display_name" maxlength="50" /></label><button class="btn secondary" type="submit">حفظ</button></form></details>
+        <div class="panel"><p class="kicker">البيانات</p><h3>ابدأ من جديد</h3><p class="subtle">يمسح الطلاب والجداول والحصص والتحصيلات والمصروفات والدخل وسجل النشاط. رمز الدخول واسم سوزان يفضلوا كما هم.</p><button id="resetAllDataBtn" class="btn danger wide" type="button">مسح كل البيانات والبدء من جديد</button></div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-view="today" class="nav-btn active"><svg viewBox="0 0 24 24"><path d="M3 11l9-8 9 8v9a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></svg><em>اليوم</em></button>
+      <button data-view="money" class="nav-btn"><svg viewBox="0 0 24 24"><path d="M4 7h16v11H4zM4 9h16M16 14h1"/></svg><em>فلوسي</em></button>
+      <button data-view="schedule" class="nav-btn"><svg viewBox="0 0 24 24"><path d="M5 3v3M19 3v3M4 8h16v13H4zM8 12h3M13 12h3M8 16h3M13 16h3"/></svg><em>جدولي</em></button>
+      <button data-view="me" class="nav-btn"><svg viewBox="0 0 24 24"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM4 21a8 8 0 0 1 16 0"/></svg><em>أنا</em></button>
+    </nav>
+  </div>
+
+  <dialog id="receiptDialog" class="sheet">
+    <form id="receiptForm" method="dialog" class="sheet-body">
+      <input name="id" type="hidden" />
+      <div class="sheet-head"><div><p class="kicker">تحصيل سريع</p><h3 id="receiptDialogTitle">قبضت فلوس</h3></div><button type="button" class="close-dialog">×</button></div>
+      <label class="big-field">المبلغ<input name="amount" type="number" step="0.01" min="0.01" inputmode="decimal" required /></label>
+      <label>من مين؟<select name="student_id" id="receiptStudent" required></select></label>
+      <div id="receiptStudentHint" class="smart-hint"></div>
+      <div class="two-col"><label>التاريخ<input name="received_at" type="date" required /></label><label>طريقة الدفع<select name="payment_method"><option value="cash">كاش</option><option value="bank">تحويل بنكي</option><option value="wallet">محفظة</option><option value="other">أخرى</option></select></label></div>
+      <label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" placeholder="مثال: دفعة من أم مريم" /></label>
+      <button class="btn primary wide" type="submit">تأكيد الاستلام</button>
+      <button id="deleteReceiptBtn" class="btn danger wide hidden" type="button">حذف الاستلام</button>
+    </form>
+  </dialog>
+
+  <dialog id="expenseDialog" class="sheet">
+    <form id="expenseForm" method="dialog" class="sheet-body">
+      <input name="id" type="hidden" />
+      <div class="sheet-head"><div><p class="kicker">ثواني بس</p><h3 id="expenseDialogTitle">سجلّي مصروف</h3></div><button type="button" class="close-dialog">×</button></div>
+      <label class="big-field">كام؟<input name="amount" type="number" step="0.01" inputmode="decimal" placeholder="0" required /></label>
+      <div class="segmented" id="expenseScope"><button type="button" data-scope="personal" class="active">شخصي</button><button type="button" data-scope="business">شغل</button></div>
+      <input name="scope" type="hidden" value="personal" />
+      <label>الفئة<select name="category" required></select></label>
+      <label>التاريخ<input name="date" type="date" required /></label>
+      <label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" /></label>
+      <button class="btn primary wide" type="submit">حفظ المصروف</button>
+      <button id="deleteExpenseBtn" class="btn danger wide hidden" type="button">حذف المصروف</button>
+    </form>
+  </dialog>
+
+  <dialog id="incomeDialog" class="sheet">
+    <form id="incomeForm" method="dialog" class="sheet-body">
+      <input name="id" type="hidden" />
+      <div class="sheet-head"><div><p class="kicker">استثناء فقط</p><h3 id="incomeDialogTitle">دخل غير الحصص</h3></div><button type="button" class="close-dialog">×</button></div>
+      <label class="big-field">المبلغ<input name="amount" type="number" step="0.01" inputmode="decimal" required /></label>
+      <label>جاي من إيه؟<select name="category"><option value="course">كورس</option><option value="extra_group">مجموعة إضافية</option><option value="materials">مواد تعليمية</option><option value="bonus">مكافأة</option><option value="other">أخرى</option></select></label>
+      <label>التاريخ<input name="date" type="date" required /></label>
+      <label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" /></label>
+      <button class="btn primary wide" type="submit">حفظ الدخل</button>
+      <button id="deleteIncomeBtn" class="btn danger wide hidden" type="button">حذف الدخل</button>
+    </form>
+  </dialog>
+
+  <dialog id="sessionDialog" class="sheet">
+    <form id="sessionForm" method="dialog" class="sheet-body">
+      <input name="id" type="hidden" /><input name="student_id" type="hidden" />
+      <div class="sheet-head"><div><p class="kicker">إعداد مرة واحدة</p><h3 id="sessionDialogTitle">طالب / مجموعة جديدة</h3></div><button type="button" class="close-dialog">×</button></div>
+      <div id="sessionEditHint" class="hint-card hidden">التعديل هنا للمواعيد القادمة فقط. الحصص القديمة والمدفوعات لا تتغير.</div>
+      <label>الاسم<input name="title" placeholder="مثال: مريم" required /></label>
+      <label>نوع الحصة<select name="session_type" required><option value="private_student_home">خاص عند الطالب</option><option value="private_sozan_home">خاص عندي</option><option value="online">أونلاين</option><option value="center_group">مجموعة السنتر</option><option value="own_group">مجموعة خاصة</option></select></label>
+      <div class="two-col"><label>اليوم<select name="weekday"><option value="0">الأحد</option><option value="1">الإثنين</option><option value="2">الثلاثاء</option><option value="3">الأربعاء</option><option value="4">الخميس</option><option value="5">الجمعة</option><option value="6">السبت</option></select></label><label>الساعة<input name="start_time" type="time" required /></label></div>
+      <label class="big-field">سعر الحصة<input name="price" type="number" step="0.01" inputmode="decimal" required /></label>
+      <details class="advanced"><summary>تفاصيل إضافية</summary><div class="two-col"><label>مدة الحصة بالدقائق<input name="duration_minutes" type="number" value="60" min="15" step="5" /></label><label>وقت الانتقال<input name="travel_minutes" type="number" value="0" min="0" step="5" /></label><label>عدد الأطفال<input name="student_count" type="number" value="1" min="1" /></label><label>نسبة السنتر %<input name="center_cut_percent" type="number" value="0" min="0" max="100" step="0.1" /></label></div><label>السعر ده<select name="price_basis"><option value="total_session">للحصة كلها</option><option value="per_student">لكل طفل</option></select></label><label>المكان<input name="location" /></label></details>
+      <button class="btn primary wide" type="submit">حفظ</button><button id="stopSessionBtn" class="btn danger wide hidden" type="button">إيقاف الحصة من الجدول</button>
+    </form>
+  </dialog>
+
+  <dialog id="studentDialog" class="sheet tall-sheet">
+    <div class="sheet-body" id="studentProfileBody"></div>
+  </dialog>
+
+  <dialog id="activityDialog" class="sheet tall-sheet">
+    <div class="sheet-body">
+      <div class="sheet-head"><div><p class="kicker">سجل ذكي</p><h3>كل النشاط</h3></div><button type="button" class="close-dialog">×</button></div>
+      <div class="activity-tools"><input id="activitySearch" type="search" placeholder="ابحثي باسم طالب أو حركة..." /><div class="filter-chips"><button data-activity-filter="all" class="active">الكل</button><button data-activity-filter="receipt">تحصيل</button><button data-activity-filter="expense">مصروف</button><button data-activity-filter="other_income">دخل</button><button data-activity-filter="session">حصص</button></div></div>
+      <div id="activityFullList" class="activity-list"></div>
+    </div>
+  </dialog>
+
+  <dialog id="sessionActionsDialog" class="sheet action-sheet"><div class="sheet-body"><div class="sheet-head"><div><p class="kicker">الحصة</p><h3 id="sessionActionName"></h3></div><button type="button" class="close-dialog">×</button></div><div id="sessionActionList" class="action-list"></div></div></dialog>
+
+  <dialog id="rescheduleDialog" class="sheet"><form id="rescheduleForm" method="dialog" class="sheet-body"><input name="occurrence_id" type="hidden" /><div class="sheet-head"><div><p class="kicker">حصة واحدة فقط</p><h3>نقل موعد <span id="rescheduleName"></span></h3></div><button type="button" class="close-dialog">×</button></div><p class="subtle">ده لا يغيّر الجدول الأسبوعي.</p><div class="two-col"><label>اليوم الجديد<input name="date" type="date" required /></label><label>الساعة الجديدة<input name="time" type="time" required /></label></div><label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" /></label><button class="btn primary wide" type="submit">نقل الحصة</button></form></dialog>
+
+  <dialog id="paymentCorrectionDialog" class="sheet"><form id="paymentCorrectionForm" method="dialog" class="sheet-body"><input name="occurrence_id" type="hidden" /><div class="sheet-head"><div><p class="kicker">تصحيح آمن</p><h3>تصحيح دفع <span id="paymentCorrectionName"></span></h3></div><button type="button" class="close-dialog">×</button></div><p id="paymentCorrectionHint" class="subtle"></p><label class="big-field">المبلغ الصحيح<input name="received_total" type="number" step="0.01" min="0" inputmode="decimal" required /></label><label>سبب التصحيح <span class="subtle">اختياري</span><input name="reason" maxlength="200" /></label><button class="btn primary wide" type="submit">حفظ التصحيح</button></form></dialog>
+
+  <dialog id="cashDialog" class="sheet"><form id="cashForm" method="dialog" class="sheet-body"><div class="sheet-head"><div><p class="kicker">مطابقة بسيطة</p><h3>معاكي فعليًا كام؟</h3></div><button type="button" class="close-dialog">×</button></div><p class="subtle">اكتبي تقدير المبلغ الموجود الآن.</p><label class="big-field">الموجود فعليًا<input name="actual_balance" type="number" step="0.01" inputmode="decimal" required /></label><button class="btn primary wide" type="submit">قارن</button></form></dialog>
+
+  <dialog id="resetDataDialog" class="sheet">
+    <form id="resetDataForm" class="sheet-body">
+      <div class="sheet-head"><div><p class="kicker">إجراء نهائي</p><h3>ابدأ من جديد</h3></div><button id="closeResetData" type="button" class="close-dialog">×</button></div>
+      <p class="subtle">هذا سيمسح كل بيانات العمل المسجلة نهائيًا. للتأكيد اكتبي العبارة التالية كما هي:</p>
+      <div class="hint-card"><strong>امسح كل البيانات</strong></div>
+      <label>عبارة التأكيد<input id="resetConfirmInput" name="confirm" autocomplete="off" required /></label>
+      <button class="btn danger wide" type="submit">تأكيد المسح والبدء من جديد</button>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast"><span id="toastText"></span><button id="toastAction" class="hidden"></button></div>
+  <script type="module" src="/app.js"></script>
+  <script>
+    (() => {
+      let lastDateKey = null;
+      const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const updateClock = () => {
+        const now = new Date();
+        const key = dateKey(now);
+        const dateLabel = document.getElementById('todayDateLabel');
+        if (dateLabel) dateLabel.textContent = new Intl.DateTimeFormat('ar-EG', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).format(now);
+        const greeting = document.getElementById('greetingText');
+        if (greeting) {
+          const current = greeting.textContent || '';
+          const split = current.split(' يا ');
+          const name = split.length > 1 ? split.slice(1).join(' يا ') : 'سوزان';
+          greeting.textContent = `${now.getHours() < 12 ? 'صباح الخير' : 'مساء الخير'} يا ${name}`;
+        }
+        const app = document.getElementById('appView');
+        if (lastDateKey && key !== lastDateKey && app && !app.classList.contains('hidden')) location.reload();
+        lastDateKey = key;
+      };
+      updateClock();
+      setInterval(updateClock, 60000);
+      window.addEventListener('focus', updateClock);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) updateClock(); });
+
+      const resetBtn = document.getElementById('resetAllDataBtn');
+      const resetDialog = document.getElementById('resetDataDialog');
+      const resetForm = document.getElementById('resetDataForm');
+      const resetInput = document.getElementById('resetConfirmInput');
+      const closeReset = document.getElementById('closeResetData');
+      resetBtn?.addEventListener('click', () => {
+        resetInput.value = '';
+        if (resetDialog.showModal) resetDialog.showModal(); else resetDialog.setAttribute('open','');
+      });
+      closeReset?.addEventListener('click', () => resetDialog.close ? resetDialog.close() : resetDialog.removeAttribute('open'));
+      resetForm?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const confirmText = resetInput.value.trim();
+        if (confirmText !== 'امسح كل البيانات') { alert('عبارة التأكيد غير مطابقة.'); return; }
+        const submit = resetForm.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        submit.textContent = 'جاري المسح...';
+        try {
+          const res = await fetch('/api/v4/reset-data', { method:'POST', credentials:'same-origin', headers:{'content-type':'application/json'}, body:JSON.stringify({confirm:confirmText}) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'تعذر مسح البيانات');
+          alert('تم مسح كل البيانات. البرنامج سيبدأ الآن من جديد.');
+          location.reload();
+        } catch (err) {
+          alert(err.message || 'تعذر مسح البيانات');
+          submit.disabled = false;
+          submit.textContent = 'تأكيد المسح والبدء من جديد';
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
