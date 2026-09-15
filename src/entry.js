@@ -7,6 +7,7 @@ export default{
   async fetch(request,env,ctx){
     const url=new URL(request.url);
     if(url.pathname==='/api/health')return json({ok:true,app:env.APP_NAME||'Sozan Tutor OS',version:'5.1',mutation_dedupe:true,receipt_rebalance:true,schedule_views:true,reports:true,monthly_billing:true,loading_state:true,deep_audit:true});
+    if(url.pathname==='/api/v4/students/summary'&&request.method==='GET'){const auth=await checkAuth(request,env,ctx);if(!auth.ok)return auth.response;return fastStudentSummaries(env)}
     if(url.pathname==='/api/v4/reports'&&request.method==='GET'){const auth=await checkAuth(request,env,ctx);if(!auth.ok)return auth.response;return buildReport(url,env)}
     if((url.pathname==='/'||url.pathname==='/index.html')&&request.method==='GET'){const response=await env.ASSETS.fetch(request);if(!response.ok)return response;let html=await response.text();if(!html.includes('/audit-ui.js')){const marker='<script type="module" src="/app.js"></script>';html=html.includes(marker)?html.replace(marker,`${marker}\n  ${UI_SCRIPTS}`):html.replace('</body>',`  ${UI_SCRIPTS}\n</body>`)}const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');headers.set('cache-control','no-cache');return new Response(html,{status:response.status,headers})}
     return app.fetch(request,env,ctx);
@@ -14,6 +15,53 @@ export default{
 };
 
 async function checkAuth(request,env,ctx){const probeUrl=new URL('/api/v3/settings',request.url),probe=new Request(probeUrl,{method:'GET',headers:request.headers}),response=await app.fetch(probe,env,ctx);return{ok:response.ok,response}}
+
+async function fastStudentSummaries(env){
+  const month=londonMonth();await ensureMonthlyDuesThroughMonth(env.DB,month);await rebalanceStudentsWithMonthly(env.DB);
+  const rows=await env.DB.prepare(`
+    WITH occ AS (
+      SELECT r.student_id,
+        COALESCE(SUM(MAX(0,o.earned_pence
+          - COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=o.id AND p.reversed_at IS NULL),0)
+          - COALESCE((SELECT SUM(a.amount_pence) FROM receipt_allocations_v4 a JOIN student_receipts_v4 rr ON rr.id=a.receipt_id WHERE a.occurrence_id=o.id AND rr.deleted_at IS NULL),0))),0) outstanding_pence,
+        COALESCE(SUM(CASE WHEN o.earned_pence
+          - COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=o.id AND p.reversed_at IS NULL),0)
+          - COALESCE((SELECT SUM(a.amount_pence) FROM receipt_allocations_v4 a JOIN student_receipts_v4 rr ON rr.id=a.receipt_id WHERE a.occurrence_id=o.id AND rr.deleted_at IS NULL),0) > 0 THEN 1 ELSE 0 END),0) outstanding_count
+      FROM session_occurrences_v3 o JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+      WHERE o.status='completed' AND r.student_id IS NOT NULL GROUP BY r.student_id
+    ),
+    monthly AS (
+      SELECT d.student_id,
+        COALESCE(SUM(MAX(0,(d.amount_pence+d.adjustment_pence)-COALESCE((SELECT SUM(a.amount_pence) FROM monthly_due_allocations_v5 a WHERE a.monthly_due_id=d.id),0))),0) outstanding_pence,
+        COALESCE(SUM(CASE WHEN (d.amount_pence+d.adjustment_pence)>COALESCE((SELECT SUM(a.amount_pence) FROM monthly_due_allocations_v5 a WHERE a.monthly_due_id=d.id),0) THEN 1 ELSE 0 END),0) outstanding_count
+      FROM monthly_dues_v5 d WHERE d.student_id IS NOT NULL GROUP BY d.student_id
+    ),
+    receipts AS (SELECT student_id,COALESCE(SUM(amount_pence),0) total FROM student_receipts_v4 WHERE deleted_at IS NULL GROUP BY student_id),
+    occ_alloc AS (SELECT rr.student_id,COALESCE(SUM(a.amount_pence),0) total FROM receipt_allocations_v4 a JOIN student_receipts_v4 rr ON rr.id=a.receipt_id WHERE rr.deleted_at IS NULL GROUP BY rr.student_id),
+    mon_alloc AS (SELECT rr.student_id,COALESCE(SUM(a.amount_pence),0) total FROM monthly_due_allocations_v5 a JOIN student_receipts_v4 rr ON rr.id=a.receipt_id WHERE rr.deleted_at IS NULL GROUP BY rr.student_id),
+    pay_events AS (
+      SELECT rr.student_id,rr.amount_pence,rr.received_at paid_at,rr.id sort_id,1 sort_kind FROM student_receipts_v4 rr WHERE rr.deleted_at IS NULL
+      UNION ALL
+      SELECT r.student_id,p.amount_pence,p.paid_at,p.id sort_id,0 sort_kind FROM payments_v3 p JOIN session_occurrences_v3 o ON o.id=p.occurrence_id JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id WHERE p.reversed_at IS NULL AND r.student_id IS NOT NULL
+    ),
+    latest AS (SELECT student_id,amount_pence,paid_at,ROW_NUMBER() OVER(PARTITION BY student_id ORDER BY paid_at DESC,sort_kind DESC,sort_id DESC) rn FROM pay_events),
+    plans AS (SELECT student_id,MAX(price_pence) monthly_price_pence FROM recurring_sessions_v3 WHERE active=1 AND price_type='monthly' AND student_id IS NOT NULL GROUP BY student_id)
+    SELECT s.id,s.name,s.guardian_name,s.guardian_phone,s.age,s.level,
+      COALESCE(occ.outstanding_pence,0)+COALESCE(monthly.outstanding_pence,0) outstanding_pence,
+      COALESCE(occ.outstanding_count,0)+COALESCE(monthly.outstanding_count,0) outstanding_count,
+      MAX(0,COALESCE(receipts.total,0)-COALESCE(occ_alloc.total,0)-COALESCE(mon_alloc.total,0)) credit_pence,
+      COALESCE(latest.amount_pence,0) last_payment_pence,latest.paid_at last_payment_date,
+      CASE WHEN plans.student_id IS NOT NULL THEN 'monthly' ELSE 'per_session' END billing_type,
+      COALESCE(plans.monthly_price_pence,0) monthly_price_pence
+    FROM students_v3 s
+    LEFT JOIN occ ON occ.student_id=s.id LEFT JOIN monthly ON monthly.student_id=s.id
+    LEFT JOIN receipts ON receipts.student_id=s.id LEFT JOIN occ_alloc ON occ_alloc.student_id=s.id LEFT JOIN mon_alloc ON mon_alloc.student_id=s.id
+    LEFT JOIN latest ON latest.student_id=s.id AND latest.rn=1 LEFT JOIN plans ON plans.student_id=s.id
+    WHERE s.active=1 AND s.deleted_at IS NULL
+    ORDER BY outstanding_pence DESC,s.name COLLATE NOCASE
+  `).all();
+  const students=rows.results||[];return json({students,total_outstanding_pence:students.reduce((n,s)=>n+Number(s.outstanding_pence||0),0)});
+}
 
 async function buildReport(url,env){
   const month=validMonth(url.searchParams.get('month'));if(!month)return json({error:'اختاري شهر صحيح'},400);
