@@ -39,7 +39,7 @@ export default {
       if (/^\/api\/v3\/sessions\/\d+$/.test(path) && request.method === 'PATCH') return updateSession(request, url, env);
       if (/^\/api\/v3\/sessions\/\d+$/.test(path) && request.method === 'DELETE') return disableSession(url, env);
 
-      const action = path.match(/^\/api\/v3\/occurrences\/(\d+)\/(complete-paid|complete-unpaid|cancel|restore|collect)$/);
+      const action = path.match(/^\/api\/v3\/occurrences\/(\d+)\/(complete-paid|complete-unpaid|cancel|restore|reopen|collect)$/);
       if (action && request.method === 'POST') return handleOccurrenceAction(request, env, Number(action[1]), action[2]);
       const reschedule = path.match(/^\/api\/v3\/occurrences\/(\d+)\/reschedule$/);
       if (reschedule && request.method === 'POST') return rescheduleOccurrence(request, env, Number(reschedule[1]));
@@ -205,6 +205,12 @@ async function handleOccurrenceAction(request,env,id,action){
   }
   if(action==='restore'){
     if(row.status!=='cancelled')return json({error:'الحصة ليست ملغاة'},409);
+    await env.DB.prepare(`UPDATE session_occurrences_v3 SET status='scheduled',earned_pence=0,completed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?1`).bind(id).run();
+    return json({ok:true});
+  }
+  if(action==='reopen'){
+    if(row.status!=='completed')return json({error:'الحصة ليست مكتملة'},409);
+    if(alreadyPaid>0)return json({error:'صححي التحصيل إلى صفر أولًا، وبعدها ارجعي الحصة لمجدولة.'},409);
     await env.DB.prepare(`UPDATE session_occurrences_v3 SET status='scheduled',earned_pence=0,completed_at=NULL,updated_at=CURRENT_TIMESTAMP WHERE id=?1`).bind(id).run();
     return json({ok:true});
   }
