@@ -1,14 +1,14 @@
-import app,{ensureMonthlyDuesThroughMonth,rebalanceStudentsWithMonthly} from './billing-guard.js';
+import app,{ensureMonthlyDuesThroughMonth,rebalanceStudentsWithMonthly} from './audit.js';
 
 const JSON_HEADERS={'content-type':'application/json; charset=utf-8'};
-const UI_SCRIPTS='<script src="/loading-view.js"></script><script type="module" src="/schedule-view.js"></script><script type="module" src="/billing-view.js"></script><script src="/billing-dialog-sync.js"></script><script type="module" src="/reports-view.js"></script>';
+const UI_SCRIPTS='<script src="/loading-view.js"></script><script src="/audit-ui.js"></script><script type="module" src="/schedule-view.js"></script><script type="module" src="/billing-view.js"></script><script src="/billing-dialog-sync.js"></script><script type="module" src="/reports-view.js"></script>';
 
 export default{
   async fetch(request,env,ctx){
     const url=new URL(request.url);
-    if(url.pathname==='/api/health')return json({ok:true,app:env.APP_NAME||'Sozan Tutor OS',version:'5.0',mutation_dedupe:true,receipt_rebalance:true,schedule_views:true,reports:true,monthly_billing:true,loading_state:true});
+    if(url.pathname==='/api/health')return json({ok:true,app:env.APP_NAME||'Sozan Tutor OS',version:'5.1',mutation_dedupe:true,receipt_rebalance:true,schedule_views:true,reports:true,monthly_billing:true,loading_state:true,deep_audit:true});
     if(url.pathname==='/api/v4/reports'&&request.method==='GET'){const auth=await checkAuth(request,env,ctx);if(!auth.ok)return auth.response;return buildReport(url,env)}
-    if((url.pathname==='/'||url.pathname==='/index.html')&&request.method==='GET'){const response=await env.ASSETS.fetch(request);if(!response.ok)return response;let html=await response.text();if(!html.includes('/billing-view.js')){const marker='<script type="module" src="/app.js"></script>';html=html.includes(marker)?html.replace(marker,`${marker}\n  ${UI_SCRIPTS}`):html.replace('</body>',`  ${UI_SCRIPTS}\n</body>`)}const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');headers.set('cache-control','no-cache');return new Response(html,{status:response.status,headers})}
+    if((url.pathname==='/'||url.pathname==='/index.html')&&request.method==='GET'){const response=await env.ASSETS.fetch(request);if(!response.ok)return response;let html=await response.text();if(!html.includes('/audit-ui.js')){const marker='<script type="module" src="/app.js"></script>';html=html.includes(marker)?html.replace(marker,`${marker}\n  ${UI_SCRIPTS}`):html.replace('</body>',`  ${UI_SCRIPTS}\n</body>`)}const headers=new Headers(response.headers);headers.set('content-type','text/html; charset=utf-8');headers.set('cache-control','no-cache');return new Response(html,{status:response.status,headers})}
     return app.fetch(request,env,ctx);
   }
 };
@@ -17,6 +17,7 @@ async function checkAuth(request,env,ctx){const probeUrl=new URL('/api/v3/settin
 
 async function buildReport(url,env){
   const month=validMonth(url.searchParams.get('month'));if(!month)return json({error:'اختاري شهر صحيح'},400);
+  if(month>londonMonth())return json({error:'التقارير الفعلية متاحة لحد الشهر الحالي. الشهر الجاي لسه ما بقاش استحقاق حقيقي.'},400);
   await ensureMonthlyDuesThroughMonth(env.DB,month);await rebalanceStudentsWithMonthly(env.DB);
   const [sessionSummary,directCash,receiptCash,otherIncome,expenseSummary,occOutstanding,monthlySummary,sessionsByType,expensesByCategory,otherIncomeByCategory]=await Promise.all([
     env.DB.prepare(`SELECT COALESCE(SUM(o.earned_pence),0) earned_pence,COUNT(*) completed_sessions FROM session_occurrences_v3 o WHERE o.status='completed' AND substr(COALESCE(o.rescheduled_to_date,o.session_date),1,7)=?1`).bind(month).first(),
@@ -33,5 +34,6 @@ async function buildReport(url,env){
   const studentCash=Number(directCash?.value||0)+Number(receiptCash?.value||0),other=Number(otherIncome?.value||0),expenses=Number(expenseSummary?.total||0),earned=Number(sessionSummary?.earned_pence||0)+Number(monthlySummary?.earned_pence||0),outstanding=Number(occOutstanding?.value||0)+Number(monthlySummary?.outstanding_pence||0);
   return json({month,summary:{session_earned_pence:earned,per_session_earned_pence:Number(sessionSummary?.earned_pence||0),monthly_earned_pence:Number(monthlySummary?.earned_pence||0),completed_sessions:Number(sessionSummary?.completed_sessions||0),student_cash_pence:studentCash,other_income_pence:other,expenses_pence:expenses,business_expenses_pence:Number(expenseSummary?.business||0),personal_expenses_pence:Number(expenseSummary?.personal||0),cash_net_pence:studentCash+other-expenses,month_outstanding_pence:outstanding},sessions_by_type:sessionsByType.results||[],expenses_by_category:expensesByCategory.results||[],other_income_by_category:otherIncomeByCategory.results||[]});
 }
+function londonMonth(){const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',year:'numeric',month:'2-digit'}).formatToParts(new Date()),g=t=>p.find(x=>x.type===t)?.value;return `${g('year')}-${g('month')}`}
 function validMonth(v){return /^\d{4}-(0[1-9]|1[0-2])$/.test(String(v||''))?String(v):null}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:JSON_HEADERS})}
