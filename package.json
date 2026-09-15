@@ -6,9 +6,9 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "deploy:prod": "wrangler deploy && wrangler d1 migrations apply DB --remote",
-    "db:migrate:local": "wrangler d1 migrations apply DB --local",
-    "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
+    "deploy:prod": "wrangler deploy && wrangler d1 migrations apply DB --remote --yes",
+    "db:migrate:local": "wrangler d1 migrations apply DB --local --yes",
+    "db:migrate:remote": "wrangler d1 migrations apply DB --remote --yes",
     "check": "node --check src/worker.js && node --check public/app.js"
   },
   "devDependencies": {
