@@ -26,5 +26,5 @@ jobs:
           preCommands: |
             npm install
             npm run check
-            wrangler d1 migrations apply DB --remote --yes
+            wrangler d1 migrations apply DB --remote
           command: deploy
