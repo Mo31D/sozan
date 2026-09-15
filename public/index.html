@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="theme-color" content="#111827" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <title>Sozan Tutor OS</title>
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <link rel="icon" href="/icon.svg" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div id="loginView" class="login-shell hidden">
+    <form id="loginForm" class="login-card">
+      <div class="brand-mark">S</div>
+      <h1>إدارة دروس سوزان</h1>
+      <p>ادخلي رمز الدخول الخاص بك.</p>
+      <input id="passcode" type="password" autocomplete="current-password" placeholder="رمز الدخول" required />
+      <button class="primary wide" type="submit">دخول</button>
+      <div id="loginError" class="error-text"></div>
+    </form>
+  </div>
+
+  <div id="appView" class="app-shell hidden">
+    <header class="topbar">
+      <div>
+        <div class="eyebrow">Sozan Tutor OS</div>
+        <h1 id="pageTitle">اليوم</h1>
+      </div>
+      <button id="logoutBtn" class="icon-btn" title="تسجيل الخروج">↪</button>
+    </header>
+
+    <main>
+      <section id="view-today" class="view active">
+        <div id="summaryCards" class="summary-grid"></div>
+        <div class="section-head"><h2>حصص اليوم</h2><span id="todayDate" class="muted"></span></div>
+        <div id="todaySessions" class="stack"></div>
+      </section>
+
+      <section id="view-money" class="view">
+        <div class="section-head"><h2 id="transactionFormTitle">إضافة حركة مالية</h2></div>
+        <form id="transactionForm" class="card form-grid">
+          <input name="id" type="hidden" />
+          <label>التاريخ<input name="date" type="date" required /></label>
+          <label>النوع<select name="kind"><option value="expense">مصروف</option><option value="income">دخل</option></select></label>
+          <label>التصنيف<select name="scope"><option value="business">شغل</option><option value="personal">شخصي</option></select></label>
+          <label>المبلغ<input name="amount" inputmode="decimal" type="number" min="0" step="0.01" required /></label>
+          <label>الفئة<select name="category"><option value="transport">مواصلات</option><option value="books">كتب</option><option value="food">أكل</option><option value="supplies">مستلزمات</option><option value="lesson">حصة</option><option value="other">أخرى</option></select></label>
+          <label class="full">ملاحظة<input name="note" maxlength="200" placeholder="اختياري" /></label>
+          <div class="full form-actions">
+            <button id="transactionSaveBtn" class="primary" type="submit">حفظ</button>
+            <button id="transactionCancelEdit" class="secondary hidden" type="button">إلغاء التعديل</button>
+          </div>
+        </form>
+        <div class="section-head"><h2>آخر الحركات</h2><span class="muted">اختاري أي حركة لتعديلها</span></div>
+        <div id="transactionsList" class="stack"></div>
+      </section>
+
+      <section id="view-schedule" class="view">
+        <div class="section-head"><h2 id="scheduleFormTitle">إضافة حصة متكررة</h2></div>
+        <form id="scheduleForm" class="card form-grid">
+          <input name="id" type="hidden" />
+          <label class="full">اسم مختصر<input name="title" placeholder="مثال: مريم - خاص" required /></label>
+          <label>النوع<select name="session_type"><option value="private_home">برايفت في البيت</option><option value="private_out">برايفت خارج البيت</option><option value="online">أونلاين</option><option value="center_group">مجموعة السنتر</option><option value="own_group">مجموعة خاصة</option></select></label>
+          <label>اليوم<select name="weekday"><option value="0">الأحد</option><option value="1">الإثنين</option><option value="2">الثلاثاء</option><option value="3">الأربعاء</option><option value="4">الخميس</option><option value="5">الجمعة</option><option value="6">السبت</option></select></label>
+          <label>الساعة<input name="start_time" type="time" required /></label>
+          <label>مدة الحصة بالدقائق<input name="duration_minutes" type="number" value="60" min="15" step="5" required /></label>
+          <label>إجمالي الحصة<input name="gross_amount" type="number" min="0" step="0.01" required /></label>
+          <label>نسبة السنتر %<input name="center_cut_percent" type="number" value="0" min="0" max="100" step="0.1" /></label>
+          <label>وقت الانتقال بالدقائق<input name="travel_minutes" type="number" value="0" min="0" step="5" /></label>
+          <label>عدد الأطفال<input name="student_count" type="number" value="1" min="1" /></label>
+          <label>نطاق السن<input name="age_band" placeholder="مثال 6-7" /></label>
+          <label>المستوى<input name="level" placeholder="مثال تأسيس قراءة" /></label>
+          <label class="full">المكان<input name="location" placeholder="اختياري" /></label>
+          <div class="full form-actions">
+            <button id="scheduleSaveBtn" class="primary" type="submit">حفظ الحصة</button>
+            <button id="scheduleCancelEdit" class="secondary hidden" type="button">إلغاء التعديل</button>
+          </div>
+        </form>
+        <div class="section-head"><h2>الجدول الحالي</h2><span class="muted">تعديل أو إيقاف أي حصة</span></div>
+        <div id="scheduleList" class="stack"></div>
+      </section>
+
+      <section id="view-ai" class="view">
+        <div class="ai-hero card">
+          <div class="ai-orb">↗</div>
+          <div><h2>تحليل الأداء</h2><p>تحليل رقمي محلي لآخر 28 يومًا بدون API مدفوع.</p></div>
+        </div>
+        <button id="adviceBtn" class="primary wide">حلّل آخر 28 يومًا</button>
+        <pre id="adviceBox" class="advice-box">لم يتم التحليل بعد.</pre>
+        <div class="card privacy-note"><strong>خصوصية:</strong> التحليل الحالي يتم بقواعد حسابية داخل التطبيق ولا يرسل البيانات إلى خدمات ذكاء اصطناعي خارجية.</div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button data-view="today" class="nav-btn active"><span>⌂</span>اليوم</button>
+      <button data-view="money" class="nav-btn"><span>◫</span>الفلوس</button>
+      <button data-view="schedule" class="nav-btn"><span>▦</span>الجدول</button>
+      <button data-view="ai" class="nav-btn"><span>↗</span>التحليل</button>
+    </nav>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
