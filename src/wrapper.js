@@ -1,9 +1,19 @@
 import app from './worker.js';
 
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' };
-const DEDUPE_WINDOW_SECONDS = 8;
-const POLL_ATTEMPTS = 32;
+const PENDING_TTL_SECONDS = 30;
+const REPLAY_WINDOW_SECONDS = 2;
+const POLL_ATTEMPTS = 40;
 const POLL_MS = 250;
+
+const CREATE_ROUTES = new Set([
+  '/api/v3/students',
+  '/api/v3/sessions',
+  '/api/v4/receipts',
+  '/api/v3/expenses',
+  '/api/v3/other-income',
+  '/api/v3/cash-check'
+]);
 
 export default {
   async fetch(request, env, ctx) {
@@ -18,29 +28,45 @@ export default {
       }), { status: 200, headers: JSON_HEADERS });
     }
 
-    if (!isProtectedMutation(request, url)) {
+    if (url.pathname === '/api/v4/reset-data' && request.method === 'POST') {
+      const response = await app.fetch(request, env, ctx);
+      if (response.ok) await env.DB.prepare(`DELETE FROM mutation_dedupe_v1`).run();
+      return response;
+    }
+
+    if (!isProtectedCreate(request, url)) {
       return app.fetch(request, env, ctx);
     }
 
-    return dedupeMutation(request, env, ctx, url);
+    return dedupeCreate(request, env, ctx, url);
   }
 };
 
-function isProtectedMutation(request, url) {
-  if (!url.pathname.startsWith('/api/')) return false;
-  if (!['POST', 'PATCH', 'DELETE'].includes(request.method)) return false;
-  if (url.pathname === '/api/login' || url.pathname === '/api/logout') return false;
-  return true;
+function isProtectedCreate(request, url) {
+  return request.method === 'POST' && CREATE_ROUTES.has(url.pathname);
 }
 
-async function dedupeMutation(request, env, ctx, url) {
+async function dedupeCreate(request, env, ctx, url) {
   const body = await request.clone().text();
   const cookie = request.headers.get('cookie') || '';
   const fingerprint = await sha256(`${request.method}\n${url.pathname}${url.search}\n${cookie}\n${body}`);
 
-  // Keep the table small and allow an identical legitimate action after the short protection window.
-  await env.DB.prepare(`DELETE FROM mutation_dedupe_v1 WHERE created_at < datetime('now','-1 day')`).run();
-  await env.DB.prepare(`DELETE FROM mutation_dedupe_v1 WHERE dedupe_key=?1 AND created_at < datetime('now','-${DEDUPE_WINDOW_SECONDS} seconds')`).bind(fingerprint).run();
+  const existing = await readDedupe(env.DB, fingerprint);
+  if (existing) {
+    if (existing.status === 'done' && Number(existing.replay_fresh) === 1) {
+      return replayResponse(existing);
+    }
+    if (existing.status === 'pending' && Number(existing.pending_fresh) === 1) {
+      const replay = await waitForCompleted(env.DB, fingerprint);
+      if (replay?.status === 'done') return replayResponse(replay);
+      if (replay?.status === 'pending') {
+        return new Response(JSON.stringify({
+          error: 'العملية لسه بتتحفظ. استني لحظة من غير ما تضغطي تاني.'
+        }), { status: 409, headers: JSON_HEADERS });
+      }
+    }
+    await env.DB.prepare(`DELETE FROM mutation_dedupe_v1 WHERE dedupe_key=?1`).bind(fingerprint).run();
+  }
 
   const claim = await env.DB.prepare(`
     INSERT OR IGNORE INTO mutation_dedupe_v1(dedupe_key,method,path,status)
@@ -50,12 +76,9 @@ async function dedupeMutation(request, env, ctx, url) {
   if (Number(claim.meta?.changes || 0) === 0) {
     const replay = await waitForCompleted(env.DB, fingerprint);
     if (replay?.status === 'done') return replayResponse(replay);
-    if (!replay) {
-      // The first attempt failed and released its claim. Let this request become the retry.
-      return dedupeMutation(request, env, ctx, url);
-    }
+    if (!replay) return dedupeCreate(request, env, ctx, url);
     return new Response(JSON.stringify({
-      error: 'نفس العملية ما زالت بتتحفظ. استني لحظة من غير ما تضغطي تاني.'
+      error: 'العملية لسه بتتحفظ. استني لحظة من غير ما تضغطي تاني.'
     }), { status: 409, headers: JSON_HEADERS });
   }
 
@@ -76,6 +99,9 @@ async function dedupeMutation(request, env, ctx, url) {
       WHERE dedupe_key=?4
     `).bind(response.status, responseBody, contentType, fingerprint).run();
 
+    if (ctx?.waitUntil) {
+      ctx.waitUntil(env.DB.prepare(`DELETE FROM mutation_dedupe_v1 WHERE created_at < datetime('now','-1 day')`).run());
+    }
     return response;
   } catch (error) {
     await env.DB.prepare(`DELETE FROM mutation_dedupe_v1 WHERE dedupe_key=?1`).bind(fingerprint).run();
@@ -83,13 +109,22 @@ async function dedupeMutation(request, env, ctx, url) {
   }
 }
 
+async function readDedupe(db, key) {
+  return db.prepare(`
+    SELECT status,response_status,response_body,content_type,
+      CASE WHEN created_at >= datetime('now','-${PENDING_TTL_SECONDS} seconds') THEN 1 ELSE 0 END pending_fresh,
+      CASE WHEN completed_at IS NOT NULL AND completed_at >= datetime('now','-${REPLAY_WINDOW_SECONDS} seconds') THEN 1 ELSE 0 END replay_fresh
+    FROM mutation_dedupe_v1 WHERE dedupe_key=?1
+  `).bind(key).first();
+}
+
 async function waitForCompleted(db, key) {
   for (let i = 0; i < POLL_ATTEMPTS; i++) {
-    const row = await db.prepare(`SELECT status,response_status,response_body,content_type FROM mutation_dedupe_v1 WHERE dedupe_key=?1`).bind(key).first();
+    const row = await readDedupe(db, key);
     if (!row || row.status === 'done') return row || null;
     await sleep(POLL_MS);
   }
-  return db.prepare(`SELECT status,response_status,response_body,content_type FROM mutation_dedupe_v1 WHERE dedupe_key=?1`).bind(key).first();
+  return readDedupe(db, key);
 }
 
 function replayResponse(row) {
