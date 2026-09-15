@@ -40,7 +40,7 @@
     <main>
       <section id="view-today" class="view active">
         <div class="hero-card compact-hero">
-          <div class="hero-top"><div><p id="greetingText" class="hero-kicker">صباح الخير يا سوزان</p><p class="hero-label">المتبقي من اللي قبضتيه هذا الشهر</p></div><span class="soft-icon">✦</span></div>
+          <div class="hero-top"><div><p id="greetingText" class="hero-kicker">صباح الخير يا سوزان</p><p id="todayDateLabel" class="hero-label"></p><p class="hero-label">المتبقي من اللي قبضتيه هذا الشهر</p></div><span class="soft-icon">✦</span></div>
           <div id="monthLeft" class="hero-value">0 ج</div>
           <div class="hero-split"><div><span>قبضتي</span><strong id="receivedValue">0 ج</strong></div><div><span>صرفتي</span><strong id="spentValue">0 ج</strong></div></div>
         </div>
@@ -104,6 +104,7 @@
         <div class="panel"><div class="panel-head"><div><p class="kicker">ملاحظات ذكية</p><h3>إيه اللي محتاج انتباهك؟</h3></div></div><div id="insightsList" class="insights-list"></div></div>
         <div class="cash-card panel"><div><p class="kicker">مطابقة الفلوس</p><h3>المفروض معاكي دلوقتي</h3><strong id="expectedBalanceValue" class="cash-value">0 ج</strong><p class="subtle">حسب كل اللي قبضتيه ناقص كل المصروفات المسجلة.</p></div><button id="cashCheckBtn" class="btn primary">أقولك الموجود فعليًا</button><div id="lastCashCheck" class="cash-result"></div></div>
         <details class="panel settings-panel"><summary>إعدادات البداية</summary><form id="settingsForm" class="stack-form"><label>الرصيد عند بداية استخدام البرنامج<input name="opening_balance" type="number" step="0.01" /></label><label>الاسم الظاهر<input name="sozan_display_name" maxlength="50" /></label><button class="btn secondary" type="submit">حفظ</button></form></details>
+        <div class="panel"><p class="kicker">البيانات</p><h3>ابدأ من جديد</h3><p class="subtle">يمسح الطلاب والجداول والحصص والتحصيلات والمصروفات والدخل وسجل النشاط. رمز الدخول واسم سوزان يفضلوا كما هم.</p><button id="resetAllDataBtn" class="btn danger wide" type="button">مسح كل البيانات والبدء من جديد</button></div>
       </section>
     </main>
 
@@ -191,7 +192,73 @@
 
   <dialog id="cashDialog" class="sheet"><form id="cashForm" method="dialog" class="sheet-body"><div class="sheet-head"><div><p class="kicker">مطابقة بسيطة</p><h3>معاكي فعليًا كام؟</h3></div><button type="button" class="close-dialog">×</button></div><p class="subtle">اكتبي تقدير المبلغ الموجود الآن.</p><label class="big-field">الموجود فعليًا<input name="actual_balance" type="number" step="0.01" inputmode="decimal" required /></label><button class="btn primary wide" type="submit">قارن</button></form></dialog>
 
+  <dialog id="resetDataDialog" class="sheet">
+    <form id="resetDataForm" class="sheet-body">
+      <div class="sheet-head"><div><p class="kicker">إجراء نهائي</p><h3>ابدأ من جديد</h3></div><button id="closeResetData" type="button" class="close-dialog">×</button></div>
+      <p class="subtle">هذا سيمسح كل بيانات العمل المسجلة نهائيًا. للتأكيد اكتبي العبارة التالية كما هي:</p>
+      <div class="hint-card"><strong>امسح كل البيانات</strong></div>
+      <label>عبارة التأكيد<input id="resetConfirmInput" name="confirm" autocomplete="off" required /></label>
+      <button class="btn danger wide" type="submit">تأكيد المسح والبدء من جديد</button>
+    </form>
+  </dialog>
+
   <div id="toast" class="toast"><span id="toastText"></span><button id="toastAction" class="hidden"></button></div>
   <script type="module" src="/app.js"></script>
+  <script>
+    (() => {
+      let lastDateKey = null;
+      const dateKey = d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      const updateClock = () => {
+        const now = new Date();
+        const key = dateKey(now);
+        const dateLabel = document.getElementById('todayDateLabel');
+        if (dateLabel) dateLabel.textContent = new Intl.DateTimeFormat('ar-EG', { weekday:'long', day:'numeric', month:'long', year:'numeric' }).format(now);
+        const greeting = document.getElementById('greetingText');
+        if (greeting) {
+          const current = greeting.textContent || '';
+          const split = current.split(' يا ');
+          const name = split.length > 1 ? split.slice(1).join(' يا ') : 'سوزان';
+          greeting.textContent = `${now.getHours() < 12 ? 'صباح الخير' : 'مساء الخير'} يا ${name}`;
+        }
+        const app = document.getElementById('appView');
+        if (lastDateKey && key !== lastDateKey && app && !app.classList.contains('hidden')) location.reload();
+        lastDateKey = key;
+      };
+      updateClock();
+      setInterval(updateClock, 60000);
+      window.addEventListener('focus', updateClock);
+      document.addEventListener('visibilitychange', () => { if (!document.hidden) updateClock(); });
+
+      const resetBtn = document.getElementById('resetAllDataBtn');
+      const resetDialog = document.getElementById('resetDataDialog');
+      const resetForm = document.getElementById('resetDataForm');
+      const resetInput = document.getElementById('resetConfirmInput');
+      const closeReset = document.getElementById('closeResetData');
+      resetBtn?.addEventListener('click', () => {
+        resetInput.value = '';
+        if (resetDialog.showModal) resetDialog.showModal(); else resetDialog.setAttribute('open','');
+      });
+      closeReset?.addEventListener('click', () => resetDialog.close ? resetDialog.close() : resetDialog.removeAttribute('open'));
+      resetForm?.addEventListener('submit', async e => {
+        e.preventDefault();
+        const confirmText = resetInput.value.trim();
+        if (confirmText !== 'امسح كل البيانات') { alert('عبارة التأكيد غير مطابقة.'); return; }
+        const submit = resetForm.querySelector('button[type="submit"]');
+        submit.disabled = true;
+        submit.textContent = 'جاري المسح...';
+        try {
+          const res = await fetch('/api/v4/reset-data', { method:'POST', credentials:'same-origin', headers:{'content-type':'application/json'}, body:JSON.stringify({confirm:confirmText}) });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || 'تعذر مسح البيانات');
+          alert('تم مسح كل البيانات. البرنامج سيبدأ الآن من جديد.');
+          location.reload();
+        } catch (err) {
+          alert(err.message || 'تعذر مسح البيانات');
+          submit.disabled = false;
+          submit.textContent = 'تأكيد المسح والبدء من جديد';
+        }
+      });
+    })();
+  </script>
 </body>
 </html>
