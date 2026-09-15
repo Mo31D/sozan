@@ -1,4 +1,4 @@
-const CACHE='sozan-v3-2';
+const CACHE='sozan-v3-3';
 const STATIC=['/','/index.html','/styles.css','/app.js','/manifest.webmanifest','/icon.svg'];
 
 self.addEventListener('install',event=>{
