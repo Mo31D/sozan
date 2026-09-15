@@ -1,24 +1,32 @@
 const JSON_HEADERS = { 'content-type': 'application/json; charset=utf-8' };
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
+const BUSINESS_EXPENSE_CATEGORIES = new Set([
+  'work_transport','books_printing','teaching_supplies','work_internet',
+  'center_fees','study_materials','other_business'
+]);
+const PERSONAL_EXPENSE_CATEGORIES = new Set([
+  'home','food','personal_transport','bills','children','commitments',
+  'personal_shopping','health','other_personal'
+]);
+const OTHER_INCOME_CATEGORIES = new Set(['course','extra_group','materials','bonus','other']);
+const SESSION_TYPES = new Set([
+  'private_student_home','private_sozan_home','online','center_group','own_group'
+]);
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const path = url.pathname;
 
     try {
-      if (!url.pathname.startsWith('/api/')) {
-        return env.ASSETS.fetch(request);
-      }
+      if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
 
-      if (url.pathname === '/api/health') {
-        return json({ ok: true, app: env.APP_NAME || 'Sozan Tutor OS' });
+      if (path === '/api/health') {
+        return json({ ok: true, app: env.APP_NAME || 'Sozan Tutor OS', version: '3' });
       }
-
-      if (url.pathname === '/api/login' && request.method === 'POST') {
-        return handleLogin(request, env);
-      }
-
-      if (url.pathname === '/api/logout' && request.method === 'POST') {
+      if (path === '/api/login' && request.method === 'POST') return handleLogin(request, env);
+      if (path === '/api/logout' && request.method === 'POST') {
         return new Response(null, {
           status: 204,
           headers: { 'set-cookie': 'sozan_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0' }
@@ -28,39 +36,40 @@ export default {
       const auth = await requireAuth(request, env);
       if (auth) return auth;
 
-      if (url.pathname === '/api/dashboard' && request.method === 'GET') {
-        return dashboard(url, env);
+      if (path === '/api/v3/dashboard' && request.method === 'GET') return v3Dashboard(url, env);
+      if (path === '/api/v3/today' && request.method === 'GET') return v3Dashboard(url, env);
+
+      if (path === '/api/v3/students' && request.method === 'GET') return listStudents(env);
+      if (path === '/api/v3/students' && request.method === 'POST') return createStudent(request, env);
+      if (/^\/api\/v3\/students\/\d+$/.test(path) && request.method === 'PATCH') return updateStudent(request, url, env);
+
+      if (path === '/api/v3/sessions' && request.method === 'GET') return listSessions(env);
+      if (path === '/api/v3/sessions' && request.method === 'POST') return createSession(request, env);
+      if (/^\/api\/v3\/sessions\/\d+$/.test(path) && request.method === 'PATCH') return updateSession(request, url, env);
+      if (/^\/api\/v3\/sessions\/\d+$/.test(path) && request.method === 'DELETE') return disableSession(url, env);
+
+      const occurrenceAction = path.match(/^\/api\/v3\/occurrences\/(\d+)\/(complete-paid|complete-unpaid|cancel|collect)$/);
+      if (occurrenceAction && request.method === 'POST') {
+        return handleOccurrenceAction(request, env, Number(occurrenceAction[1]), occurrenceAction[2]);
       }
-      if (url.pathname === '/api/schedule' && request.method === 'GET') {
-        return listSchedule(env);
-      }
-      if (url.pathname === '/api/schedule' && request.method === 'POST') {
-        return createSchedule(request, env);
-      }
-      if (url.pathname.match(/^\/api\/schedule\/\d+$/) && request.method === 'PATCH') {
-        return updateSchedule(request, url, env);
-      }
-      if (url.pathname.match(/^\/api\/schedule\/\d+$/) && request.method === 'DELETE') {
-        return deleteSchedule(url, env);
-      }
-      if (url.pathname.match(/^\/api\/occurrences\/\d+$/) && request.method === 'PATCH') {
-        return updateOccurrence(request, url, env);
-      }
-      if (url.pathname === '/api/transactions' && request.method === 'GET') {
-        return listTransactions(url, env);
-      }
-      if (url.pathname === '/api/transactions' && request.method === 'POST') {
-        return createTransaction(request, env);
-      }
-      if (url.pathname.match(/^\/api\/transactions\/\d+$/) && request.method === 'PATCH') {
-        return updateTransaction(request, url, env);
-      }
-      if (url.pathname.match(/^\/api\/transactions\/\d+$/) && request.method === 'DELETE') {
-        return deleteTransaction(url, env);
-      }
-      if (url.pathname === '/api/advice' && request.method === 'POST') {
-        return createAdvice(env);
-      }
+
+      if (path === '/api/v3/outstanding' && request.method === 'GET') return listOutstanding(env);
+
+      if (path === '/api/v3/expenses' && request.method === 'GET') return listExpenses(url, env);
+      if (path === '/api/v3/expenses' && request.method === 'POST') return createExpense(request, env);
+      if (/^\/api\/v3\/expenses\/\d+$/.test(path) && request.method === 'PATCH') return updateExpense(request, url, env);
+      if (/^\/api\/v3\/expenses\/\d+$/.test(path) && request.method === 'DELETE') return deleteExpense(url, env);
+
+      if (path === '/api/v3/other-income' && request.method === 'GET') return listOtherIncome(url, env);
+      if (path === '/api/v3/other-income' && request.method === 'POST') return createOtherIncome(request, env);
+
+      if (path === '/api/v3/cash-check' && request.method === 'GET') return getCashCheck(url, env);
+      if (path === '/api/v3/cash-check' && request.method === 'POST') return createCashCheck(request, env);
+
+      if (path === '/api/v3/settings' && request.method === 'GET') return getSettings(env);
+      if (path === '/api/v3/settings' && request.method === 'PATCH') return updateSettings(request, env);
+
+      if (path === '/api/v3/insights' && request.method === 'GET') return getInsights(url, env);
 
       return json({ error: 'Not found' }, 404);
     } catch (error) {
@@ -113,317 +122,688 @@ async function requireAuth(request, env) {
   return null;
 }
 
-async function dashboard(url, env) {
+async function v3Dashboard(url, env) {
   const date = sanitizeDate(url.searchParams.get('date')) || todayISO();
-  await ensureOccurrencesForDate(env.DB, date);
+  const data = await buildDashboardData(env.DB, date);
+  return json(data);
+}
+
+async function buildDashboardData(db, date) {
+  await ensureOccurrencesForDateV3(db, date);
   const month = date.slice(0, 7);
 
-  const sessions = await env.DB.prepare(`
-    SELECT o.id, o.date, o.status, o.paid, o.gross_amount_pence, o.center_cut_pence,
-           o.net_amount_pence, r.title, r.session_type, r.start_time, r.duration_minutes,
-           r.travel_minutes, r.student_count, r.location, r.age_band, r.level
-    FROM session_occurrences o
-    JOIN recurring_sessions r ON r.id = o.recurring_session_id
-    WHERE o.date = ?1
-    ORDER BY r.start_time ASC
+  const sessions = await db.prepare(`
+    SELECT o.id, o.session_date, o.status, o.gross_pence, o.center_cut_pence, o.earned_pence,
+           r.title, r.session_type, r.start_time, r.duration_minutes, r.travel_minutes,
+           r.student_count, r.location,
+           COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=o.id),0) paid_pence
+    FROM session_occurrences_v3 o
+    JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+    WHERE o.session_date=?1
+    ORDER BY r.start_time ASC, o.id ASC
   `).bind(date).all();
 
-  const sums = await env.DB.prepare(`
-    SELECT
-      COALESCE(SUM(CASE WHEN kind='income' THEN amount_pence ELSE 0 END),0) income,
-      COALESCE(SUM(CASE WHEN kind='expense' AND scope='business' THEN amount_pence ELSE 0 END),0) business_expenses,
-      COALESCE(SUM(CASE WHEN kind='expense' AND scope='personal' THEN amount_pence ELSE 0 END),0) personal_expenses
-    FROM transactions
-    WHERE substr(date,1,7) = ?1
+  const earned = await db.prepare(`
+    SELECT COALESCE(SUM(earned_pence),0) value
+    FROM session_occurrences_v3
+    WHERE substr(session_date,1,7)=?1 AND status='completed'
   `).bind(month).first();
 
-  const time = await env.DB.prepare(`
+  const receivedLessons = await db.prepare(`
+    SELECT COALESCE(SUM(amount_pence),0) value
+    FROM payments_v3
+    WHERE substr(paid_at,1,7)=?1
+  `).bind(month).first();
+
+  const otherIncome = await db.prepare(`
+    SELECT COALESCE(SUM(amount_pence),0) value
+    FROM other_income_v3
+    WHERE substr(income_date,1,7)=?1
+  `).bind(month).first();
+
+  const expenses = await db.prepare(`
+    SELECT
+      COALESCE(SUM(amount_pence),0) total,
+      COALESCE(SUM(CASE WHEN scope='business' THEN amount_pence ELSE 0 END),0) business,
+      COALESCE(SUM(CASE WHEN scope='personal' THEN amount_pence ELSE 0 END),0) personal
+    FROM expenses_v3
+    WHERE substr(expense_date,1,7)=?1
+  `).bind(month).first();
+
+  const outstanding = await db.prepare(`
+    SELECT COALESCE(SUM(
+      CASE WHEN o.status='completed'
+      THEN MAX(0, o.earned_pence - COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=o.id),0))
+      ELSE 0 END
+    ),0) value
+    FROM session_occurrences_v3 o
+  `).first();
+
+  const time = await db.prepare(`
     SELECT
       COALESCE(SUM(r.duration_minutes),0) teaching_minutes,
       COALESCE(SUM(r.travel_minutes),0) travel_minutes
-    FROM session_occurrences o
-    JOIN recurring_sessions r ON r.id = o.recurring_session_id
-    WHERE substr(o.date,1,7) = ?1 AND o.status='completed'
+    FROM session_occurrences_v3 o
+    JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+    WHERE substr(o.session_date,1,7)=?1 AND o.status='completed'
   `).bind(month).first();
 
-  const pending = await env.DB.prepare(`
-    SELECT COALESCE(SUM(o.net_amount_pence),0) pending
-    FROM session_occurrences o
-    WHERE substr(o.date,1,7)=?1 AND o.status='completed' AND o.paid=0
-  `).bind(month).first();
+  const categories = await db.prepare(`
+    SELECT scope, category, SUM(amount_pence) amount_pence
+    FROM expenses_v3
+    WHERE substr(expense_date,1,7)=?1
+    GROUP BY scope, category
+    ORDER BY amount_pence DESC
+  `).bind(month).all();
 
-  const income = Number(sums?.income || 0);
-  const businessExpenses = Number(sums?.business_expenses || 0);
-  const personalExpenses = Number(sums?.personal_expenses || 0);
+  const expectedBalance = await calculateExpectedBalance(db);
+  const lastCheck = await db.prepare(`
+    SELECT * FROM cash_checks_v3 ORDER BY check_date DESC, id DESC LIMIT 1
+  `).first();
+
+  const received = Number(receivedLessons?.value || 0) + Number(otherIncome?.value || 0);
+  const expenseTotal = Number(expenses?.total || 0);
+  const businessExpenses = Number(expenses?.business || 0);
   const realMinutes = Number(time?.teaching_minutes || 0) + Number(time?.travel_minutes || 0);
-  const operatingProfit = income - businessExpenses;
+  const businessProfit = Number(earned?.value || 0) - businessExpenses;
 
-  return json({
+  return {
     date,
     month,
-    sessions: sessions.results || [],
+    sessions: (sessions.results || []).map(s => ({
+      ...s,
+      outstanding_pence: Math.max(0, Number(s.earned_pence || 0) - Number(s.paid_pence || 0))
+    })),
+    expense_categories: categories.results || [],
+    last_cash_check: lastCheck || null,
     summary: {
-      income,
-      business_expenses: businessExpenses,
-      operating_profit: operatingProfit,
-      personal_expenses: personalExpenses,
-      cash_left: operatingProfit - personalExpenses,
-      pending: Number(pending?.pending || 0),
+      earned_pence: Number(earned?.value || 0),
+      received_lessons_pence: Number(receivedLessons?.value || 0),
+      other_income_pence: Number(otherIncome?.value || 0),
+      received_total_pence: received,
+      expenses_pence: expenseTotal,
+      business_expenses_pence: businessExpenses,
+      personal_expenses_pence: Number(expenses?.personal || 0),
+      month_left_pence: received - expenseTotal,
+      outstanding_pence: Number(outstanding?.value || 0),
       teaching_minutes: Number(time?.teaching_minutes || 0),
       travel_minutes: Number(time?.travel_minutes || 0),
-      true_hourly_pence: realMinutes > 0 ? Math.round((operatingProfit * 60) / realMinutes) : 0
+      true_hourly_pence: realMinutes > 0 ? Math.round((businessProfit * 60) / realMinutes) : 0,
+      expected_balance_pence: expectedBalance
     }
-  });
+  };
 }
 
-async function ensureOccurrencesForDate(db, date) {
+async function ensureOccurrencesForDateV3(db, date) {
   const weekday = new Date(`${date}T12:00:00Z`).getUTCDay();
-  const rows = await db.prepare(`SELECT * FROM recurring_sessions WHERE active=1 AND weekday=?1`).bind(weekday).all();
+  const rows = await db.prepare(`
+    SELECT * FROM recurring_sessions_v3 WHERE active=1 AND weekday=?1
+  `).bind(weekday).all();
+
   for (const r of rows.results || []) {
-    const gross = Number(r.gross_amount_pence || 0);
+    const gross = sessionGross(r);
     const cut = Math.round(gross * Number(r.center_cut_percent || 0) / 100);
-    const net = Math.max(0, gross - cut);
     await db.prepare(`
-      INSERT OR IGNORE INTO session_occurrences
-      (recurring_session_id,date,status,paid,gross_amount_pence,center_cut_pence,net_amount_pence)
-      VALUES (?1,?2,'scheduled',0,?3,?4,?5)
-    `).bind(r.id, date, gross, cut, net).run();
+      INSERT OR IGNORE INTO session_occurrences_v3
+      (recurring_session_id,session_date,scheduled_start,status,gross_pence,center_cut_pence,earned_pence)
+      VALUES (?1,?2,?3,'scheduled',?4,?5,0)
+    `).bind(r.id, date, r.start_time, gross, cut).run();
   }
 }
 
-async function listSchedule(env) {
-  const rows = await env.DB.prepare(`SELECT * FROM recurring_sessions WHERE active=1 ORDER BY weekday,start_time`).all();
+function sessionGross(r) {
+  const price = Number(r.price_pence || 0);
+  const count = Math.max(1, Number(r.student_count || 1));
+  return r.price_basis === 'per_student' ? price * count : price;
+}
+
+async function listStudents(env) {
+  const rows = await env.DB.prepare(`
+    SELECT * FROM students_v3 WHERE active=1 ORDER BY name COLLATE NOCASE
+  `).all();
+  return json({ students: rows.results || [] });
+}
+
+async function createStudent(request, env) {
+  const b = await safeJson(request);
+  const name = String(b?.name || '').trim();
+  if (!name) return json({ error: 'اكتبي اسم الطالب' }, 400);
+  const result = await env.DB.prepare(`
+    INSERT INTO students_v3(name,age,level,notes) VALUES (?1,?2,?3,?4)
+  `).bind(name.slice(0,100), nullableInt(b?.age), nullableText(b?.level), nullableText(b?.notes)).run();
+  return json({ ok: true, id: result.meta?.last_row_id }, 201);
+}
+
+async function updateStudent(request, url, env) {
+  const id = Number(url.pathname.split('/').pop());
+  const b = await safeJson(request);
+  const existing = await env.DB.prepare(`SELECT * FROM students_v3 WHERE id=?1`).bind(id).first();
+  if (!existing) return json({ error: 'الطالب غير موجود' }, 404);
+  const name = String(b?.name ?? existing.name).trim();
+  await env.DB.prepare(`
+    UPDATE students_v3
+    SET name=?1, age=?2, level=?3, notes=?4, updated_at=CURRENT_TIMESTAMP
+    WHERE id=?5
+  `).bind(
+    name.slice(0,100),
+    b?.age === undefined ? existing.age : nullableInt(b.age),
+    b?.level === undefined ? existing.level : nullableText(b.level),
+    b?.notes === undefined ? existing.notes : nullableText(b.notes),
+    id
+  ).run();
+  return json({ ok: true });
+}
+
+async function listSessions(env) {
+  const rows = await env.DB.prepare(`
+    SELECT r.*, s.name student_name, s.age student_age, s.level student_level
+    FROM recurring_sessions_v3 r
+    LEFT JOIN students_v3 s ON s.id=r.student_id
+    WHERE r.active=1
+    ORDER BY r.weekday, r.start_time, r.id
+  `).all();
   return json({ sessions: rows.results || [] });
 }
 
-async function createSchedule(request, env) {
+async function createSession(request, env) {
   const b = await safeJson(request);
-  const required = ['title','session_type','weekday','start_time','duration_minutes','gross_amount'];
-  for (const key of required) if (b?.[key] === undefined || b?.[key] === '') return json({ error: `Missing ${key}` }, 400);
-  const allowedTypes = new Set(['private_home','private_out','online','center_group','own_group']);
-  if (!allowedTypes.has(b.session_type)) return json({ error: 'نوع الحصة غير صالح' }, 400);
-  const gross = moneyToPence(b.gross_amount);
+  const title = String(b?.title || b?.student_name || '').trim();
+  if (!title) return json({ error: 'اكتبي اسم الطالب أو المجموعة' }, 400);
+  if (!SESSION_TYPES.has(b?.session_type)) return json({ error: 'نوع الحصة غير صالح' }, 400);
+
+  let studentId = nullablePositiveInt(b?.student_id);
+  if (!studentId && b?.student_name && !['center_group','own_group'].includes(b.session_type)) {
+    const created = await env.DB.prepare(`
+      INSERT INTO students_v3(name,age,level) VALUES (?1,?2,?3)
+    `).bind(
+      String(b.student_name).trim().slice(0,100),
+      nullableInt(b.age),
+      nullableText(b.level)
+    ).run();
+    studentId = Number(created.meta?.last_row_id || 0) || null;
+  }
+
+  const values = normalizeSessionBody(b);
   const result = await env.DB.prepare(`
-    INSERT INTO recurring_sessions
-    (title,session_type,weekday,start_time,duration_minutes,gross_amount_pence,center_cut_percent,travel_minutes,student_count,age_band,level,location)
-    VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12)
+    INSERT INTO recurring_sessions_v3
+    (student_id,title,session_type,weekday,start_time,duration_minutes,price_type,price_basis,
+     price_pence,student_count,center_cut_percent,travel_minutes,location)
+    VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13)
   `).bind(
-    String(b.title).trim(), b.session_type, clampInt(b.weekday,0,6), normalizeTime(b.start_time),
-    clampInt(b.duration_minutes,15,360), gross, clampNumber(b.center_cut_percent || 0,0,100),
-    clampInt(b.travel_minutes || 0,0,360), clampInt(b.student_count || 1,1,100),
-    nullableText(b.age_band), nullableText(b.level), nullableText(b.location)
+    studentId,
+    title.slice(0,120),
+    b.session_type,
+    values.weekday,
+    values.start_time,
+    values.duration_minutes,
+    values.price_type,
+    values.price_basis,
+    values.price_pence,
+    values.student_count,
+    values.center_cut_percent,
+    values.travel_minutes,
+    values.location
+  ).run();
+
+  return json({ ok: true, id: result.meta?.last_row_id }, 201);
+}
+
+async function updateSession(request, url, env) {
+  const id = Number(url.pathname.split('/').pop());
+  const existing = await env.DB.prepare(`
+    SELECT * FROM recurring_sessions_v3 WHERE id=?1 AND active=1
+  `).bind(id).first();
+  if (!existing) return json({ error: 'الحصة غير موجودة' }, 404);
+
+  const b = await safeJson(request);
+  const merged = { ...existing, ...b };
+  const title = String(merged.title || '').trim();
+  if (!title) return json({ error: 'اسم الحصة مطلوب' }, 400);
+  if (!SESSION_TYPES.has(merged.session_type)) return json({ error: 'نوع الحصة غير صالح' }, 400);
+  const values = normalizeSessionBody({
+    ...merged,
+    price: b?.price ?? penceToMoney(existing.price_pence)
+  });
+
+  await env.DB.prepare(`
+    UPDATE recurring_sessions_v3 SET
+      title=?1, session_type=?2, weekday=?3, start_time=?4, duration_minutes=?5,
+      price_type=?6, price_basis=?7, price_pence=?8, student_count=?9,
+      center_cut_percent=?10, travel_minutes=?11, location=?12, updated_at=CURRENT_TIMESTAMP
+    WHERE id=?13
+  `).bind(
+    title.slice(0,120), merged.session_type, values.weekday, values.start_time,
+    values.duration_minutes, values.price_type, values.price_basis, values.price_pence,
+    values.student_count, values.center_cut_percent, values.travel_minutes, values.location, id
+  ).run();
+
+  const gross = values.price_basis === 'per_student'
+    ? values.price_pence * values.student_count
+    : values.price_pence;
+  const cut = Math.round(gross * values.center_cut_percent / 100);
+
+  await env.DB.prepare(`
+    UPDATE session_occurrences_v3
+    SET gross_pence=?1, center_cut_pence=?2, updated_at=CURRENT_TIMESTAMP
+    WHERE recurring_session_id=?3 AND session_date>=?4 AND status='scheduled'
+  `).bind(gross, cut, id, todayISO()).run();
+
+  return json({ ok: true });
+}
+
+function normalizeSessionBody(b) {
+  const priceType = ['per_session','monthly'].includes(b?.price_type) ? b.price_type : 'per_session';
+  const priceBasis = ['total_session','per_student'].includes(b?.price_basis) ? b.price_basis : 'total_session';
+  return {
+    weekday: clampInt(b?.weekday, 0, 6),
+    start_time: normalizeTime(b?.start_time),
+    duration_minutes: clampInt(b?.duration_minutes ?? 60, 15, 360),
+    price_type: priceType,
+    price_basis: priceBasis,
+    price_pence: moneyToPence(b?.price ?? b?.price_amount ?? 0),
+    student_count: clampInt(b?.student_count ?? 1, 1, 100),
+    center_cut_percent: clampNumber(b?.center_cut_percent ?? 0, 0, 100),
+    travel_minutes: clampInt(b?.travel_minutes ?? 0, 0, 360),
+    location: nullableText(b?.location)
+  };
+}
+
+async function disableSession(url, env) {
+  const id = Number(url.pathname.split('/').pop());
+  await env.DB.prepare(`
+    UPDATE recurring_sessions_v3 SET active=0, updated_at=CURRENT_TIMESTAMP WHERE id=?1
+  `).bind(id).run();
+  return json({ ok: true });
+}
+
+async function handleOccurrenceAction(request, env, id, action) {
+  const b = await safeJson(request) || {};
+  const row = await env.DB.prepare(`
+    SELECT o.*, r.title
+    FROM session_occurrences_v3 o
+    JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+    WHERE o.id=?1
+  `).bind(id).first();
+  if (!row) return json({ error: 'الحصة غير موجودة' }, 404);
+
+  const paidRow = await env.DB.prepare(`
+    SELECT COALESCE(SUM(amount_pence),0) paid FROM payments_v3 WHERE occurrence_id=?1
+  `).bind(id).first();
+  const alreadyPaid = Number(paidRow?.paid || 0);
+
+  if (action === 'cancel') {
+    if (alreadyPaid > 0) return json({ error: 'الحصة عليها دفعة مسجلة. راجعي التحصيل قبل الإلغاء.' }, 409);
+    await env.DB.prepare(`
+      UPDATE session_occurrences_v3
+      SET status='cancelled', earned_pence=0, completed_at=NULL, updated_at=CURRENT_TIMESTAMP
+      WHERE id=?1
+    `).bind(id).run();
+    return json({ ok: true });
+  }
+
+  if (action === 'complete-paid' || action === 'complete-unpaid') {
+    const earned = Math.max(0, Number(row.gross_pence || 0) - Number(row.center_cut_pence || 0));
+    await env.DB.prepare(`
+      UPDATE session_occurrences_v3
+      SET status='completed', earned_pence=?1, completed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+      WHERE id=?2
+    `).bind(earned, id).run();
+
+    if (action === 'complete-paid') {
+      const remainder = Math.max(0, earned - alreadyPaid);
+      if (remainder > 0) {
+        const paidAt = sanitizeDate(b?.paid_at) || row.session_date || todayISO();
+        await env.DB.prepare(`
+          INSERT INTO payments_v3(occurrence_id,amount_pence,paid_at,payment_method,note)
+          VALUES (?1,?2,?3,?4,?5)
+        `).bind(
+          id, remainder, paidAt, normalizePaymentMethod(b?.payment_method), nullableText(b?.note)
+        ).run();
+      }
+    }
+    return json({ ok: true });
+  }
+
+  if (action === 'collect') {
+    if (row.status !== 'completed') return json({ error: 'الحصة لم تُسجل كمكتملة بعد' }, 409);
+    const outstanding = Math.max(0, Number(row.earned_pence || 0) - alreadyPaid);
+    if (outstanding <= 0) return json({ error: 'الحصة مدفوعة بالكامل بالفعل' }, 409);
+    const amount = b?.amount ? moneyToPence(b.amount) : outstanding;
+    if (amount <= 0 || amount > outstanding) return json({ error: 'قيمة التحصيل غير صحيحة' }, 400);
+    await env.DB.prepare(`
+      INSERT INTO payments_v3(occurrence_id,amount_pence,paid_at,payment_method,note)
+      VALUES (?1,?2,?3,?4,?5)
+    `).bind(
+      id, amount, sanitizeDate(b?.paid_at) || todayISO(),
+      normalizePaymentMethod(b?.payment_method), nullableText(b?.note)
+    ).run();
+    return json({ ok: true });
+  }
+
+  return json({ error: 'إجراء غير صالح' }, 400);
+}
+
+async function listOutstanding(env) {
+  const rows = await env.DB.prepare(`
+    SELECT o.id occurrence_id, o.session_date, o.earned_pence, r.title, r.session_type,
+           COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=o.id),0) paid_pence
+    FROM session_occurrences_v3 o
+    JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+    WHERE o.status='completed'
+      AND o.earned_pence > COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=o.id),0)
+    ORDER BY o.session_date ASC, o.id ASC
+  `).all();
+
+  const items = (rows.results || []).map(r => ({
+    ...r,
+    outstanding_pence: Math.max(0, Number(r.earned_pence || 0) - Number(r.paid_pence || 0))
+  }));
+  return json({
+    items,
+    total_pence: items.reduce((sum, x) => sum + x.outstanding_pence, 0)
+  });
+}
+
+async function listExpenses(url, env) {
+  const month = validMonth(url.searchParams.get('month')) || todayISO().slice(0,7);
+  const rows = await env.DB.prepare(`
+    SELECT * FROM expenses_v3
+    WHERE substr(expense_date,1,7)=?1
+    ORDER BY expense_date DESC, id DESC
+    LIMIT 250
+  `).bind(month).all();
+  return json({ month, expenses: rows.results || [] });
+}
+
+async function createExpense(request, env) {
+  const b = await safeJson(request);
+  const expense = normalizeExpenseBody(b);
+  if (expense.error) return json({ error: expense.error }, 400);
+  const result = await env.DB.prepare(`
+    INSERT INTO expenses_v3(expense_date,scope,category,amount_pence,note)
+    VALUES (?1,?2,?3,?4,?5)
+  `).bind(expense.date, expense.scope, expense.category, expense.amount_pence, expense.note).run();
+  return json({ ok: true, id: result.meta?.last_row_id }, 201);
+}
+
+async function updateExpense(request, url, env) {
+  const id = Number(url.pathname.split('/').pop());
+  const existing = await env.DB.prepare(`SELECT * FROM expenses_v3 WHERE id=?1`).bind(id).first();
+  if (!existing) return json({ error: 'المصروف غير موجود' }, 404);
+  const b = await safeJson(request);
+  const expense = normalizeExpenseBody({
+    date: b?.date ?? existing.expense_date,
+    scope: b?.scope ?? existing.scope,
+    category: b?.category ?? existing.category,
+    amount: b?.amount ?? penceToMoney(existing.amount_pence),
+    note: b?.note ?? existing.note
+  });
+  if (expense.error) return json({ error: expense.error }, 400);
+  await env.DB.prepare(`
+    UPDATE expenses_v3
+    SET expense_date=?1, scope=?2, category=?3, amount_pence=?4, note=?5, updated_at=CURRENT_TIMESTAMP
+    WHERE id=?6
+  `).bind(expense.date, expense.scope, expense.category, expense.amount_pence, expense.note, id).run();
+  return json({ ok: true });
+}
+
+async function deleteExpense(url, env) {
+  const id = Number(url.pathname.split('/').pop());
+  await env.DB.prepare(`DELETE FROM expenses_v3 WHERE id=?1`).bind(id).run();
+  return json({ ok: true });
+}
+
+function normalizeExpenseBody(b) {
+  const scope = b?.scope === 'personal' ? 'personal' : 'business';
+  const category = String(b?.category || '');
+  const allowed = scope === 'business' ? BUSINESS_EXPENSE_CATEGORIES : PERSONAL_EXPENSE_CATEGORIES;
+  if (!allowed.has(category)) return { error: 'فئة المصروف لا تناسب نوعه' };
+  const amount = moneyToPence(b?.amount);
+  if (amount <= 0) return { error: 'اكتبي مبلغًا أكبر من صفر' };
+  return {
+    date: sanitizeDate(b?.date) || todayISO(),
+    scope,
+    category,
+    amount_pence: amount,
+    note: nullableText(b?.note)
+  };
+}
+
+async function listOtherIncome(url, env) {
+  const month = validMonth(url.searchParams.get('month')) || todayISO().slice(0,7);
+  const rows = await env.DB.prepare(`
+    SELECT * FROM other_income_v3
+    WHERE substr(income_date,1,7)=?1
+    ORDER BY income_date DESC, id DESC
+  `).bind(month).all();
+  return json({ month, income: rows.results || [] });
+}
+
+async function createOtherIncome(request, env) {
+  const b = await safeJson(request);
+  const category = OTHER_INCOME_CATEGORIES.has(b?.category) ? b.category : 'other';
+  const amount = moneyToPence(b?.amount);
+  if (amount <= 0) return json({ error: 'اكتبي مبلغًا أكبر من صفر' }, 400);
+  const result = await env.DB.prepare(`
+    INSERT INTO other_income_v3(income_date,category,amount_pence,note)
+    VALUES (?1,?2,?3,?4)
+  `).bind(
+    sanitizeDate(b?.date) || todayISO(), category, amount, nullableText(b?.note)
   ).run();
   return json({ ok: true, id: result.meta?.last_row_id }, 201);
 }
 
-async function updateSchedule(request, url, env) {
-  const id = Number(url.pathname.split('/').pop());
-  const existing = await env.DB.prepare(`SELECT id FROM recurring_sessions WHERE id=?1 AND active=1`).bind(id).first();
-  if (!existing) return json({ error: 'الحصة غير موجودة' }, 404);
+async function calculateExpectedBalance(db) {
+  const openingRow = await db.prepare(`
+    SELECT value FROM settings_v3 WHERE key='opening_balance_pence'
+  `).first();
+  const opening = Number(openingRow?.value || 0);
+
+  const lesson = await db.prepare(`SELECT COALESCE(SUM(amount_pence),0) value FROM payments_v3`).first();
+  const other = await db.prepare(`SELECT COALESCE(SUM(amount_pence),0) value FROM other_income_v3`).first();
+  const expense = await db.prepare(`SELECT COALESCE(SUM(amount_pence),0) value FROM expenses_v3`).first();
+
+  return opening + Number(lesson?.value || 0) + Number(other?.value || 0) - Number(expense?.value || 0);
+}
+
+async function getCashCheck(url, env) {
+  const expected = await calculateExpectedBalance(env.DB);
+  const last = await env.DB.prepare(`
+    SELECT * FROM cash_checks_v3 ORDER BY check_date DESC, id DESC LIMIT 1
+  `).first();
+  return json({ expected_balance_pence: expected, last_check: last || null });
+}
+
+async function createCashCheck(request, env) {
   const b = await safeJson(request);
-  const required = ['title','session_type','weekday','start_time','duration_minutes','gross_amount'];
-  for (const key of required) if (b?.[key] === undefined || b?.[key] === '') return json({ error: `Missing ${key}` }, 400);
-  const allowedTypes = new Set(['private_home','private_out','online','center_group','own_group']);
-  if (!allowedTypes.has(b.session_type)) return json({ error: 'نوع الحصة غير صالح' }, 400);
-  const gross = moneyToPence(b.gross_amount);
-  const cutPercent = clampNumber(b.center_cut_percent || 0,0,100);
-  const cut = Math.round(gross * cutPercent / 100);
-  const net = Math.max(0, gross - cut);
-  await env.DB.prepare(`
-    UPDATE recurring_sessions SET
-      title=?1, session_type=?2, weekday=?3, start_time=?4, duration_minutes=?5,
-      gross_amount_pence=?6, center_cut_percent=?7, travel_minutes=?8, student_count=?9,
-      age_band=?10, level=?11, location=?12
-    WHERE id=?13
-  `).bind(
-    String(b.title).trim(), b.session_type, clampInt(b.weekday,0,6), normalizeTime(b.start_time),
-    clampInt(b.duration_minutes,15,360), gross, cutPercent, clampInt(b.travel_minutes || 0,0,360),
-    clampInt(b.student_count || 1,1,100), nullableText(b.age_band), nullableText(b.level), nullableText(b.location), id
-  ).run();
-  await env.DB.prepare(`
-    UPDATE session_occurrences
-    SET gross_amount_pence=?1, center_cut_pence=?2, net_amount_pence=?3, updated_at=CURRENT_TIMESTAMP
-    WHERE recurring_session_id=?4 AND date>=?5 AND status='scheduled' AND paid=0
-  `).bind(gross, cut, net, id, todayISO()).run();
-  return json({ ok: true });
-}
-
-async function deleteSchedule(url, env) {
-  const id = Number(url.pathname.split('/').pop());
-  await env.DB.prepare(`UPDATE recurring_sessions SET active=0 WHERE id=?1`).bind(id).run();
-  return json({ ok: true });
-}
-
-async function updateOccurrence(request, url, env) {
-  const id = Number(url.pathname.split('/').pop());
-  const b = await safeJson(request);
-  const row = await env.DB.prepare(`SELECT * FROM session_occurrences WHERE id=?1`).bind(id).first();
-  if (!row) return json({ error: 'الحصة غير موجودة' }, 404);
-
-  let status = row.status;
-  let paid = Number(row.paid || 0);
-  if (b.status && ['scheduled','completed','cancelled'].includes(b.status)) status = b.status;
-  if (typeof b.paid === 'boolean') paid = b.paid ? 1 : 0;
-
-  await env.DB.prepare(`UPDATE session_occurrences SET status=?1, paid=?2, updated_at=CURRENT_TIMESTAMP WHERE id=?3`)
-    .bind(status, paid, id).run();
-
-  const existing = await env.DB.prepare(`SELECT id FROM transactions WHERE occurrence_id=?1 AND kind='income' LIMIT 1`).bind(id).first();
-  if (paid && !existing && status !== 'cancelled') {
-    await env.DB.prepare(`
-      INSERT INTO transactions(date,kind,scope,category,amount_pence,source,note,occurrence_id)
-      VALUES (?1,'income','business','lesson',?2,'session','تحصيل حصة',?3)
-    `).bind(row.date, row.net_amount_pence, id).run();
-  }
-  if (!paid && existing) {
-    await env.DB.prepare(`DELETE FROM transactions WHERE id=?1`).bind(existing.id).run();
-  }
-  return json({ ok: true });
-}
-
-async function listTransactions(url, env) {
-  const month = /^\d{4}-\d{2}$/.test(url.searchParams.get('month') || '') ? url.searchParams.get('month') : todayISO().slice(0,7);
-  const rows = await env.DB.prepare(`SELECT * FROM transactions WHERE substr(date,1,7)=?1 ORDER BY date DESC,id DESC LIMIT 200`).bind(month).all();
-  return json({ month, transactions: rows.results || [] });
-}
-
-async function createTransaction(request, env) {
-  const b = await safeJson(request);
-  const kind = b?.kind === 'income' ? 'income' : 'expense';
-  const scope = ['business','personal','na'].includes(b?.scope) ? b.scope : (kind === 'expense' ? 'business' : 'business');
-  const amount = moneyToPence(b?.amount);
-  if (amount <= 0) return json({ error: 'المبلغ يجب أن يكون أكبر من صفر' }, 400);
+  const actual = moneyToSignedPence(b?.actual_balance);
+  if (!Number.isFinite(actual)) return json({ error: 'اكتبي الرصيد الموجود فعليًا' }, 400);
+  const expected = await calculateExpectedBalance(env.DB);
+  const difference = actual - expected;
   const date = sanitizeDate(b?.date) || todayISO();
-  await env.DB.prepare(`
-    INSERT INTO transactions(date,kind,scope,category,amount_pence,source,note)
-    VALUES (?1,?2,?3,?4,?5,'manual',?6)
-  `).bind(date, kind, scope, String(b?.category || 'other'), amount, nullableText(b?.note)).run();
-  return json({ ok: true }, 201);
+  const result = await env.DB.prepare(`
+    INSERT INTO cash_checks_v3(check_date,expected_balance_pence,actual_balance_pence,difference_pence,note)
+    VALUES (?1,?2,?3,?4,?5)
+  `).bind(date, expected, actual, difference, nullableText(b?.note)).run();
+  return json({
+    ok: true,
+    id: result.meta?.last_row_id,
+    expected_balance_pence: expected,
+    actual_balance_pence: actual,
+    difference_pence: difference,
+    unrecorded_spending_pence: Math.max(0, expected - actual),
+    unrecorded_income_pence: Math.max(0, actual - expected)
+  }, 201);
 }
 
-async function updateTransaction(request, url, env) {
-  const id = Number(url.pathname.split('/').pop());
-  const existing = await env.DB.prepare(`SELECT * FROM transactions WHERE id=?1`).bind(id).first();
-  if (!existing) return json({ error: 'الحركة غير موجودة' }, 404);
-  if (existing.source !== 'manual') return json({ error: 'هذه الحركة مرتبطة بحصة. عدّلي حالة الدفع من صفحة اليوم.' }, 409);
+async function getSettings(env) {
+  const rows = await env.DB.prepare(`SELECT key,value FROM settings_v3`).all();
+  const settings = Object.fromEntries((rows.results || []).map(r => [r.key, r.value]));
+  return json({ settings });
+}
+
+async function updateSettings(request, env) {
   const b = await safeJson(request);
-  const kind = b?.kind === 'income' ? 'income' : 'expense';
-  const scope = ['business','personal','na'].includes(b?.scope) ? b.scope : 'business';
-  const amount = moneyToPence(b?.amount);
-  if (amount <= 0) return json({ error: 'المبلغ يجب أن يكون أكبر من صفر' }, 400);
-  const date = sanitizeDate(b?.date) || existing.date || todayISO();
-  await env.DB.prepare(`
-    UPDATE transactions SET date=?1,kind=?2,scope=?3,category=?4,amount_pence=?5,note=?6
-    WHERE id=?7
-  `).bind(date,kind,scope,String(b?.category || 'other'),amount,nullableText(b?.note),id).run();
+  const allowed = {};
+  if (b?.opening_balance !== undefined) allowed.opening_balance_pence = String(moneyToSignedPence(b.opening_balance));
+  if (b?.sozan_display_name !== undefined) allowed.sozan_display_name = String(b.sozan_display_name || 'سوزان').trim().slice(0,50) || 'سوزان';
+  if (b?.cash_check_frequency_days !== undefined) allowed.cash_check_frequency_days = String(clampInt(b.cash_check_frequency_days, 1, 60));
+
+  for (const [key, value] of Object.entries(allowed)) {
+    await env.DB.prepare(`
+      INSERT INTO settings_v3(key,value,updated_at) VALUES (?1,?2,CURRENT_TIMESTAMP)
+      ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=CURRENT_TIMESTAMP
+    `).bind(key, value).run();
+  }
   return json({ ok: true });
 }
 
-async function deleteTransaction(url, env) {
-  const id = Number(url.pathname.split('/').pop());
-  const existing = await env.DB.prepare(`SELECT * FROM transactions WHERE id=?1`).bind(id).first();
-  if (!existing) return json({ error: 'الحركة غير موجودة' }, 404);
-  if (existing.source !== 'manual') return json({ error: 'هذه الحركة مرتبطة بحصة. ألغِي الدفع من صفحة اليوم.' }, 409);
-  await env.DB.prepare(`DELETE FROM transactions WHERE id=?1`).bind(id).run();
-  return json({ ok: true });
-}
+async function getInsights(url, env) {
+  const date = sanitizeDate(url.searchParams.get('date')) || todayISO();
+  const current = await buildDashboardData(env.DB, date);
+  const previousDate = previousMonthDate(date);
+  const previous = await buildDashboardData(env.DB, previousDate);
+  const insights = [];
 
-async function createAdvice(env) {
-  const end = todayISO();
-  const start = new Date(Date.now() - 28 * 86400000).toISOString().slice(0,10);
-  const rows = await env.DB.prepare(`
-    SELECT r.session_type, r.id recurring_id, r.duration_minutes, r.travel_minutes, r.student_count,
-           r.age_band, r.level,
-           COUNT(o.id) completed_count,
-           COALESCE(SUM(o.net_amount_pence),0) earned_pence
-    FROM recurring_sessions r
-    LEFT JOIN session_occurrences o ON o.recurring_session_id=r.id AND o.status='completed' AND o.date BETWEEN ?1 AND ?2
-    WHERE r.active=1
-    GROUP BY r.id
-  `).bind(start,end).all();
+  const s = current.summary;
+  const prev = previous.summary;
 
-  const tx = await env.DB.prepare(`
-    SELECT
-      COALESCE(SUM(CASE WHEN kind='income' THEN amount_pence ELSE 0 END),0) income,
-      COALESCE(SUM(CASE WHEN kind='expense' AND scope='business' THEN amount_pence ELSE 0 END),0) business_expenses,
-      COALESCE(SUM(CASE WHEN kind='expense' AND scope='personal' THEN amount_pence ELSE 0 END),0) personal_expenses
-    FROM transactions WHERE date BETWEEN ?1 AND ?2
-  `).bind(start,end).first();
+  if (s.outstanding_pence > 0) {
+    insights.push({
+      tone: 'attention',
+      title: 'في فلوس لسه ما اتحصلتش',
+      text: `عندك ${moneyText(s.outstanding_pence)} من حصص تمت ولسه ما اتدفعتش.`
+    });
+  }
 
-  const anon = (rows.results || []).map((r, i) => ({
-    ref: `S${i+1}`,
-    type: r.session_type,
-    duration_minutes: r.duration_minutes,
-    travel_minutes: r.travel_minutes,
-    student_count: r.student_count,
-    age_band: r.age_band,
-    level: r.level,
-    completed_count: r.completed_count,
-    earned: penceToMoney(r.earned_pence),
-    effective_per_hour: effectiveRate(r)
-  }));
-
-  const deterministic = buildDeterministicAdvice(anon, tx);
-  return json({ source: 'rules', advice: deterministic });
-}
-
-function buildDeterministicAdvice(sessions, tx) {
-  const lines = [];
-  const active = sessions.filter(s => s.completed_count > 0);
-  if (active.length) {
-    const sorted = [...active].sort((a,b) => a.effective_per_hour - b.effective_per_hour);
-    const low = sorted[0];
-    const high = sorted[sorted.length-1];
-    if (low && high && high.effective_per_hour > low.effective_per_hour * 1.25) {
-      lines.push(`1) راجعي ${low.ref}: عائده الفعلي حوالي ${low.effective_per_hour.toFixed(0)} في الساعة مقابل ${high.effective_per_hour.toFixed(0)} لـ${high.ref}. اختبري رفع السعر أو تقليل الانتقال/دمج الموعد لمدة أسبوعين.`);
+  if (s.received_total_pence > 0) {
+    const ratio = s.expenses_pence / s.received_total_pence;
+    if (ratio >= 0.8) {
+      insights.push({
+        tone: 'attention',
+        title: 'المصروف قريب من الدخل',
+        text: `صرفتي حوالي ${Math.round(ratio * 100)}% من اللي قبضتيه هذا الشهر.`
+      });
     }
   }
-  const personal = penceToMoney(tx.personal_expenses || 0);
-  const income = penceToMoney(tx.income || 0);
-  if (income > 0 && personal / income > 0.3) {
-    lines.push(`2) المصروف الشخصي يمثل تقريبًا ${Math.round((personal/income)*100)}% من الدخل المسجل. افصلي مبلغًا شخصيًا أسبوعيًا ثابتًا واختبري الالتزام به أسبوعين.`);
+
+  const top = current.expense_categories?.[0];
+  if (top && Number(top.amount_pence || 0) > 0) {
+    insights.push({
+      tone: 'info',
+      title: 'أكبر باب صرف',
+      text: `${expenseCategoryLabel(top.category)} هو أكبر بند مسجل: ${moneyText(top.amount_pence)}.`
+    });
   }
-  const privates = sessions.filter(s => ['private_home','private_out','online'].includes(s.type) && s.student_count === 1);
-  const groups = new Map();
-  for (const p of privates) {
-    const key = `${p.age_band || ''}|${p.level || ''}`;
-    if (key !== '|' && !groups.has(key)) groups.set(key, []);
-    if (key !== '|') groups.get(key).push(p);
+
+  if (prev.received_total_pence > 0) {
+    const change = ((s.received_total_pence - prev.received_total_pence) / prev.received_total_pence) * 100;
+    if (Math.abs(change) >= 10) {
+      insights.push({
+        tone: change > 0 ? 'good' : 'attention',
+        title: 'مقارنة بالشهر اللي فات',
+        text: `التحصيل ${change > 0 ? 'أعلى' : 'أقل'} بحوالي ${Math.abs(Math.round(change))}%.`
+      });
+    }
   }
-  const candidate = [...groups.values()].find(g => g.length >= 3);
-  if (candidate) lines.push(`3) يوجد ${candidate.length} حصص فردية لها نفس نطاق السن/المستوى. لا تدمجيهم فورًا؛ اختبري عرض مجموعة صغيرة اختيارية على 3 أسر أولًا وقارني الدخل لكل ساعة.`);
-  if (!lines.length) lines.push('1) البيانات الحالية غير كافية لحكم قوي. سجلي الحصص والمدفوعات والمصروفات لمدة 14 يومًا ثم أعيدي التحليل.', '2) لا تضيفي عملاء جدد قبل معرفة العائد الحقيقي لكل ساعة.', '3) افصلي مصروف العمل عن المصروف الشخصي في كل تسجيل.');
-  return lines.slice(0,3).join('\n');
+
+  if (s.true_hourly_pence > 0) {
+    insights.push({
+      tone: 'good',
+      title: 'العائد الحقيقي للساعة',
+      text: `متوسط صافي عائد ساعة الشغل مع وقت الانتقال حوالي ${moneyText(s.true_hourly_pence)}.`
+    });
+  }
+
+  if (!insights.length) {
+    insights.push({
+      tone: 'info',
+      title: 'لسه بنبني الصورة',
+      text: 'سجلي الحصص والمصروفات لأيام قليلة، وبعدها التحليل هيبقى أوضح وأدق.'
+    });
+  }
+
+  return json({ date, insights: insights.slice(0, 5) });
 }
 
-function effectiveRate(r) {
-  const sessions = Number(r.completed_count || 0);
-  if (!sessions) return 0;
-  const mins = sessions * (Number(r.duration_minutes || 0) + Number(r.travel_minutes || 0));
-  return mins ? (penceToMoney(r.earned_pence) * 60 / mins) : 0;
+function expenseCategoryLabel(category) {
+  return ({
+    work_transport:'مواصلات الشغل',
+    books_printing:'كتب وطباعة',
+    teaching_supplies:'أدوات تعليم',
+    work_internet:'إنترنت الشغل',
+    center_fees:'مصاريف السنتر',
+    study_materials:'مواد دراسية',
+    other_business:'مصروف شغل آخر',
+    home:'البيت',
+    food:'الأكل',
+    personal_transport:'مواصلات شخصية',
+    bills:'فواتير',
+    children:'الأطفال',
+    commitments:'التزامات',
+    personal_shopping:'شراء شخصي',
+    health:'الصحة',
+    other_personal:'مصروف شخصي آخر'
+  })[category] || 'أخرى';
 }
 
-function json(data, status = 200) { return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS }); }
+function previousMonthDate(date) {
+  const [y, m] = date.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 2, 15));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth()+1).padStart(2,'0')}-15`;
+}
+
+function validMonth(v) { return /^\d{4}-\d{2}$/.test(v || '') ? v : null; }
+function normalizePaymentMethod(v) {
+  return ['cash','bank','wallet','other'].includes(v) ? v : 'cash';
+}
+
+function json(data, status = 200) {
+  return new Response(JSON.stringify(data), { status, headers: JSON_HEADERS });
+}
 async function safeJson(request) { try { return await request.json(); } catch { return null; } }
 function todayISO() { return new Date().toISOString().slice(0,10); }
 function sanitizeDate(v) { return /^\d{4}-\d{2}-\d{2}$/.test(v || '') ? v : null; }
 function normalizeTime(v) { return /^\d{2}:\d{2}$/.test(v || '') ? v : '09:00'; }
 function nullableText(v) { const s = String(v ?? '').trim(); return s ? s.slice(0,300) : null; }
+function nullableInt(v) { if (v === null || v === undefined || v === '') return null; const n = Number(v); return Number.isFinite(n) ? Math.round(n) : null; }
+function nullablePositiveInt(v) { const n = Number(v); return Number.isFinite(n) && n > 0 ? Math.round(n) : null; }
 function clampInt(v,min,max) { return Math.min(max, Math.max(min, Math.round(Number(v) || 0))); }
 function clampNumber(v,min,max) { return Math.min(max, Math.max(min, Number(v) || 0)); }
-function moneyToPence(v) { const n = Number(String(v ?? '').replace(',','.')); return Number.isFinite(n) ? Math.max(0, Math.round(n * 100)) : 0; }
+function moneyToPence(v) {
+  const n = Number(String(v ?? '').replace(',','.'));
+  return Number.isFinite(n) ? Math.max(0, Math.round(n * 100)) : 0;
+}
+function moneyToSignedPence(v) {
+  const n = Number(String(v ?? '').replace(',','.'));
+  return Number.isFinite(n) ? Math.round(n * 100) : NaN;
+}
 function penceToMoney(v) { return Number(v || 0) / 100; }
+function moneyText(v) {
+  return `${(Number(v || 0) / 100).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج`;
+}
 
 async function hmac(message, secret) {
-  const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), {name:'HMAC',hash:'SHA-256'}, false, ['sign']);
+  const key = await crypto.subtle.importKey(
+    'raw',
+    new TextEncoder().encode(secret),
+    { name:'HMAC', hash:'SHA-256' },
+    false,
+    ['sign']
+  );
   const sig = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(message));
   return toBase64Url(String.fromCharCode(...new Uint8Array(sig)));
 }
 function toBase64Url(s) { return btoa(s).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,''); }
-function fromBase64Url(s) { const pad = s.length % 4 ? '='.repeat(4 - (s.length % 4)) : ''; return atob((s+pad).replace(/-/g,'+').replace(/_/g,'/')); }
+function fromBase64Url(s) {
+  const pad = s.length % 4 ? '='.repeat(4 - (s.length % 4)) : '';
+  return atob((s + pad).replace(/-/g,'+').replace(/_/g,'/'));
+}
 async function safeEqual(a,b) {
   const aa = new TextEncoder().encode(String(a));
   const bb = new TextEncoder().encode(String(b));
   if (aa.length !== bb.length) return false;
-  let diff = 0; for (let i=0;i<aa.length;i++) diff |= aa[i] ^ bb[i]; return diff === 0;
+  let diff = 0;
+  for (let i=0;i<aa.length;i++) diff |= aa[i] ^ bb[i];
+  return diff === 0;
 }
