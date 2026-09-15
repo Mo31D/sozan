@@ -6,13 +6,8 @@
  let hidden=false;
  const visible=el=>el&&!el.classList.contains('hidden');
  const hasContent=id=>{const el=document.getElementById(id);return !!el&&el.children.length>0};
- const check=()=>{
-  if(hidden)return;
-  const login=document.getElementById('loginView'),app=document.getElementById('appView');
-  if(visible(login)){finish();return;}
-  if(visible(app)&&hasContent('todaySessions')&&hasContent('scheduleList')&&hasContent('studentCollectionList')&&hasContent('insightsList'))finish();
- };
  const finish=()=>{if(hidden)return;hidden=true;overlay.classList.add('loading-done');setTimeout(()=>overlay.remove(),230)};
+ const check=()=>{if(hidden)return;const login=document.getElementById('loginView'),app=document.getElementById('appView');if(visible(login)){finish();return}if(visible(app)&&hasContent('todaySessions')&&hasContent('scheduleList')&&hasContent('studentCollectionList')&&hasContent('reviewList'))finish()};
  new MutationObserver(check).observe(document.body,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
  setTimeout(check,50);setTimeout(()=>overlay.classList.add('loading-slow'),6500);setTimeout(()=>{if(!hidden&&visible(document.getElementById('appView')))finish()},15000);
 })();
