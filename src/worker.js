@@ -18,7 +18,7 @@ export default {
     const path = url.pathname;
     try {
       if (!path.startsWith('/api/')) return env.ASSETS.fetch(request);
-      if (path === '/api/health') return json({ ok:true, app:env.APP_NAME || 'Sozan Tutor OS', version:'4.0' });
+      if (path === '/api/health') return json({ ok:true, app:env.APP_NAME || 'Sozan Tutor OS', version:'4.1' });
       if (path === '/api/login' && request.method === 'POST') return handleLogin(request, env);
       if (path === '/api/logout' && request.method === 'POST') {
         return new Response(null, { status:204, headers:{'set-cookie':'sozan_session=; Path=/; HttpOnly; Secure; SameSite=Strict; Max-Age=0'} });
@@ -27,6 +27,7 @@ export default {
       const auth = await requireAuth(request, env);
       if (auth) return auth;
 
+      if (path === '/api/v4/reset-data' && request.method === 'POST') return resetAllData(request, env);
       if ((path === '/api/v3/dashboard' || path === '/api/v3/today' || path === '/api/v4/dashboard') && request.method === 'GET') return dashboard(url, env);
 
       if (path === '/api/v3/students' && request.method === 'GET') return listStudents(env);
@@ -110,6 +111,28 @@ async function requireAuth(request, env) {
   if(!(await safeEqual(sig,expected)))return json({error:'AUTH_REQUIRED'},401);
   try{const data=JSON.parse(atob(payload));if(!data.exp||data.exp<Math.floor(Date.now()/1000))return json({error:'AUTH_REQUIRED'},401);}catch{return json({error:'AUTH_REQUIRED'},401)}
   return null;
+}
+
+async function resetAllData(request, env) {
+  const body = await safeJson(request) || {};
+  if (String(body.confirm || '').trim() !== 'امسح كل البيانات') return json({ error:'عبارة التأكيد غير مطابقة' }, 400);
+  await env.DB.batch([
+    env.DB.prepare(`DELETE FROM receipt_allocations_v4`),
+    env.DB.prepare(`DELETE FROM student_receipts_v4`),
+    env.DB.prepare(`DELETE FROM payments_v3`),
+    env.DB.prepare(`DELETE FROM session_occurrences_v3`),
+    env.DB.prepare(`DELETE FROM recurring_sessions_v3`),
+    env.DB.prepare(`DELETE FROM students_v3`),
+    env.DB.prepare(`DELETE FROM expenses_v3`),
+    env.DB.prepare(`DELETE FROM other_income_v3`),
+    env.DB.prepare(`DELETE FROM cash_checks_v3`),
+    env.DB.prepare(`DELETE FROM activity_events_v4`),
+    env.DB.prepare(`UPDATE settings_v3 SET value='0', updated_at=CURRENT_TIMESTAMP WHERE key='opening_balance_pence'`),
+    env.DB.prepare(`DELETE FROM transactions`),
+    env.DB.prepare(`DELETE FROM session_occurrences`),
+    env.DB.prepare(`DELETE FROM recurring_sessions`)
+  ]);
+  return json({ ok:true, reset:true });
 }
 
 const paidExpr = alias => `(COALESCE((SELECT SUM(p.amount_pence) FROM payments_v3 p WHERE p.occurrence_id=${alias}.id AND p.reversed_at IS NULL),0) + COALESCE((SELECT SUM(a.amount_pence) FROM receipt_allocations_v4 a JOIN student_receipts_v4 rr ON rr.id=a.receipt_id WHERE a.occurrence_id=${alias}.id AND rr.deleted_at IS NULL),0))`;
