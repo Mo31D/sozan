@@ -3,7 +3,7 @@ PRAGMA foreign_keys = ON;
 UPDATE recurring_sessions_v3
 SET start_time='غير محدد', updated_at=CURRENT_TIMESTAMP
 WHERE start_time=''
-  AND location LIKE 'مستورد من جدول سوزان الورقي%';
+  AND instr(location,'مستورد من جدول سوزان الورقي')=1;
 
 INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable)
 SELECT 'settings',NULL,'imported','تم استيراد جدول سوزان الورقي','27 موعدًا؛ المواعيد غير المكتوبة ظاهرة كـ «غير محدد» ويمكن تعديلها لاحقًا',0
