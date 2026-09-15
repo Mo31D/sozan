@@ -65,3 +65,39 @@ FROM other_income_v3 i
 WHERE NOT EXISTS (
   SELECT 1 FROM activity_events_v4 a WHERE a.entity_type='other_income' AND a.entity_id=i.id
 );
+
+INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable,created_at)
+SELECT 'student',s.id,'created','طالب مسجل',s.name,0,s.created_at
+FROM students_v3 s
+WHERE NOT EXISTS (
+  SELECT 1 FROM activity_events_v4 a WHERE a.entity_type='student' AND a.entity_id=s.id
+);
+
+INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable,created_at)
+SELECT 'session',r.id,'created','حصة مسجلة',r.title || ' · ' || r.start_time,0,r.created_at
+FROM recurring_sessions_v3 r
+WHERE NOT EXISTS (
+  SELECT 1 FROM activity_events_v4 a WHERE a.entity_type='session' AND a.entity_id=r.id
+);
+
+INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable,created_at)
+SELECT 'occurrence',o.id,
+  CASE o.status WHEN 'completed' THEN 'completed' WHEN 'cancelled' THEN 'cancelled' ELSE 'updated' END,
+  CASE o.status WHEN 'completed' THEN 'حصة تمت' WHEN 'cancelled' THEN 'حصة اتلغت' ELSE 'تعديل حصة' END,
+  r.title || ' · ' || COALESCE(o.rescheduled_to_date,o.session_date),0,o.updated_at
+FROM session_occurrences_v3 o
+JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+WHERE o.status<>'scheduled'
+  AND NOT EXISTS (
+    SELECT 1 FROM activity_events_v4 a WHERE a.entity_type='occurrence' AND a.entity_id=o.id
+  );
+
+INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable,created_at)
+SELECT 'payment',p.occurrence_id,'collected','تحصيل مسجل',r.title || ' · ' || printf('%.2f',p.amount_pence/100.0) || ' ج',0,p.created_at
+FROM payments_v3 p
+JOIN session_occurrences_v3 o ON o.id=p.occurrence_id
+JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id
+WHERE p.reversed_at IS NULL
+  AND NOT EXISTS (
+    SELECT 1 FROM activity_events_v4 a WHERE a.entity_type='payment' AND a.entity_id=p.occurrence_id
+  );
