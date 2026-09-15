@@ -10,7 +10,9 @@
   },
   "d1_databases": [
     {
-      "binding": "DB"
+      "binding": "DB",
+      "database_name": "sozan-tutor-os-db",
+      "database_id": "9a061a46-ac83-4ae7-869e-d2abbb9fb8d9"
     }
   ],
   "vars": {
