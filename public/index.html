@@ -14,247 +14,57 @@
 <body>
   <div id="loginView" class="login-shell hidden">
     <form id="loginForm" class="login-card">
-      <div class="brand-bubble">س</div>
-      <p class="kicker">مساعد سوزان</p>
-      <h1>دخول بسيط وآمن</h1>
+      <div class="brand-bubble">س</div><p class="kicker">مساعد سوزان</p><h1>دخول بسيط وآمن</h1>
       <p class="subtle">اكتبي رمز الدخول فقط.</p>
       <input id="passcode" type="password" inputmode="numeric" autocomplete="current-password" placeholder="رمز الدخول" required />
-      <button class="btn primary wide" type="submit">دخول</button>
-      <div id="loginError" class="error-text"></div>
+      <button class="btn primary wide" type="submit">دخول</button><div id="loginError" class="error-text"></div>
     </form>
   </div>
 
   <div id="appView" class="app-shell hidden">
-    <header class="topbar">
-      <div>
-        <p class="kicker">مساعد سوزان</p>
-        <h1 id="pageTitle">اليوم</h1>
-      </div>
-      <button id="logoutBtn" class="round-btn" aria-label="تسجيل الخروج">↪</button>
-    </header>
-
+    <header class="topbar"><div><p class="kicker">مساعد سوزان</p><h1 id="pageTitle">اليوم</h1></div><button id="logoutBtn" class="round-btn" aria-label="تسجيل الخروج">↪</button></header>
     <main>
       <section id="view-today" class="view active">
-        <div class="hero-card">
-          <div class="hero-top">
-            <div>
-              <p id="greetingText" class="hero-kicker">صباح الخير يا سوزان</p>
-              <p class="hero-label">المتبقي من اللي قبضتيه هذا الشهر</p>
-            </div>
-            <span class="soft-icon">✦</span>
-          </div>
-          <div id="monthLeft" class="hero-value">0 ج</div>
-          <div class="hero-split">
-            <div><span>قبضتي</span><strong id="receivedValue">0 ج</strong></div>
-            <div><span>صرفتي</span><strong id="spentValue">0 ج</strong></div>
-          </div>
-        </div>
-
-        <button id="outstandingCard" class="outstanding-card">
-          <div>
-            <span class="card-label">لسه ليكي</span>
-            <strong id="outstandingValue">0 ج</strong>
-          </div>
-          <span id="outstandingCount">0 حصة</span>
-        </button>
-
-        <div class="section-title-row">
-          <div>
-            <p class="kicker">اليوم</p>
-            <h2>حصصك</h2>
-          </div>
-          <button id="quickExpenseBtn" class="mini-action">+ مصروف</button>
-        </div>
+        <div class="hero-card"><div class="hero-top"><div><p id="greetingText" class="hero-kicker">صباح الخير يا سوزان</p><p class="hero-label">المتبقي من اللي قبضتيه هذا الشهر</p></div><span class="soft-icon">✦</span></div><div id="monthLeft" class="hero-value">0 ج</div><div class="hero-split"><div><span>قبضتي</span><strong id="receivedValue">0 ج</strong></div><div><span>صرفتي</span><strong id="spentValue">0 ج</strong></div></div></div>
+        <button id="outstandingCard" class="outstanding-card"><div><span class="card-label">لسه ليكي</span><strong id="outstandingValue">0 ج</strong></div><span id="outstandingCount">0 حصة</span></button>
+        <div class="section-title-row"><div><p class="kicker">اليوم</p><h2>حصصك</h2></div><button id="quickExpenseBtn" class="mini-action">+ مصروف</button></div>
         <div id="todaySessions" class="session-list"></div>
       </section>
 
       <section id="view-money" class="view">
-        <div class="section-title-row">
-          <div><p class="kicker">صورة الشهر</p><h2>فلوسي</h2></div>
-          <div class="inline-actions">
-            <button id="moneyExpenseBtn" class="mini-action">+ مصروف</button>
-            <button id="otherIncomeBtn" class="mini-action secondary">+ دخل آخر</button>
-          </div>
-        </div>
-
-        <div class="money-grid">
-          <div class="metric-card"><span>استحقّيتي</span><strong id="earnedValue">0 ج</strong></div>
-          <div class="metric-card"><span>قبضتي</span><strong id="moneyReceivedValue">0 ج</strong></div>
-          <div class="metric-card"><span>صرفتي</span><strong id="moneySpentValue">0 ج</strong></div>
-          <div class="metric-card accent"><span>لسه ليكي</span><strong id="moneyOutstandingValue">0 ج</strong></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div><p class="kicker">الإنفاق</p><h3>فلوسك راحت فين؟</h3></div>
-          </div>
-          <div id="expenseBreakdown" class="breakdown-list"></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div><p class="kicker">التحصيل</p><h3>فلوس لسه عند الناس</h3></div>
-          </div>
-          <div id="outstandingList" class="simple-list"></div>
-        </div>
+        <div class="section-title-row"><div><p class="kicker">صورة الشهر</p><h2>فلوسي</h2></div><div class="inline-actions"><button id="moneyExpenseBtn" class="mini-action">+ مصروف</button><button id="otherIncomeBtn" class="mini-action secondary">+ دخل آخر</button></div></div>
+        <div class="money-grid"><div class="metric-card"><span>استحقّيتي</span><strong id="earnedValue">0 ج</strong></div><div class="metric-card"><span>قبضتي</span><strong id="moneyReceivedValue">0 ج</strong></div><div class="metric-card"><span>صرفتي</span><strong id="moneySpentValue">0 ج</strong></div><div class="metric-card accent"><span>لسه ليكي</span><strong id="moneyOutstandingValue">0 ج</strong></div></div>
+        <div class="panel"><div class="panel-head"><div><p class="kicker">الإنفاق</p><h3>فلوسك راحت فين؟</h3></div></div><div id="expenseBreakdown" class="breakdown-list"></div></div>
+        <div class="panel"><div class="panel-head"><div><p class="kicker">التحصيل</p><h3>فلوس لسه عند الناس</h3></div></div><div id="outstandingList" class="simple-list"></div></div>
       </section>
 
       <section id="view-schedule" class="view">
-        <div class="section-title-row">
-          <div><p class="kicker">مرة واحدة</p><h2>جدولي</h2></div>
-          <button id="addSessionBtn" class="mini-action">+ طالب / مجموعة</button>
-        </div>
-        <div class="hint-card">أضيفي الطالب أو المجموعة مرة واحدة، وبعدها الحصة تظهر تلقائيًا في يومها.</div>
+        <div class="section-title-row"><div><p class="kicker">مرة واحدة</p><h2>جدولي</h2></div><button id="addSessionBtn" class="mini-action">+ طالب / مجموعة</button></div>
+        <div class="hint-card">أضيفي الطالب أو المجموعة مرة واحدة. تعديل الجدول يغيّر المواعيد القادمة فقط، أما نقل حصة واحدة فيتم من صفحة «اليوم».</div>
         <div id="scheduleList" class="schedule-list"></div>
       </section>
 
       <section id="view-me" class="view">
-        <div class="section-title-row">
-          <div><p class="kicker">صورة أوضح</p><h2>أنا</h2></div>
-        </div>
-
-        <div class="panel">
-          <div class="panel-head">
-            <div><p class="kicker">ملاحظات ذكية</p><h3>إيه اللي محتاج انتباهك؟</h3></div>
-          </div>
-          <div id="insightsList" class="insights-list"></div>
-        </div>
-
-        <div class="cash-card panel">
-          <div>
-            <p class="kicker">مطابقة الفلوس</p>
-            <h3>المفروض معاكي دلوقتي</h3>
-            <strong id="expectedBalanceValue" class="cash-value">0 ج</strong>
-            <p class="subtle">ده مبني على كل اللي قبضتيه ناقص كل اللي سجلتيه كمصروف.</p>
-          </div>
-          <button id="cashCheckBtn" class="btn primary">أقولك الموجود فعليًا</button>
-          <div id="lastCashCheck" class="cash-result"></div>
-        </div>
-
-        <details class="panel settings-panel">
-          <summary>إعدادات البداية</summary>
-          <form id="settingsForm" class="stack-form">
-            <label>الرصيد عند بداية استخدام البرنامج
-              <input name="opening_balance" type="number" step="0.01" />
-            </label>
-            <label>الاسم الظاهر
-              <input name="sozan_display_name" maxlength="50" />
-            </label>
-            <button class="btn secondary" type="submit">حفظ الإعدادات</button>
-          </form>
-        </details>
+        <div class="section-title-row"><div><p class="kicker">صورة أوضح</p><h2>أنا</h2></div></div>
+        <div class="panel"><div class="panel-head"><div><p class="kicker">ملاحظات ذكية</p><h3>إيه اللي محتاج انتباهك؟</h3></div></div><div id="insightsList" class="insights-list"></div></div>
+        <div class="cash-card panel"><div><p class="kicker">مطابقة الفلوس</p><h3>المفروض معاكي دلوقتي</h3><strong id="expectedBalanceValue" class="cash-value">0 ج</strong><p class="subtle">ده مبني على كل اللي قبضتيه ناقص كل اللي سجلتيه كمصروف.</p></div><button id="cashCheckBtn" class="btn primary">أقولك الموجود فعليًا</button><div id="lastCashCheck" class="cash-result"></div></div>
+        <details class="panel settings-panel"><summary>إعدادات البداية</summary><form id="settingsForm" class="stack-form"><label>الرصيد عند بداية استخدام البرنامج<input name="opening_balance" type="number" step="0.01" /></label><label>الاسم الظاهر<input name="sozan_display_name" maxlength="50" /></label><button class="btn secondary" type="submit">حفظ الإعدادات</button></form></details>
       </section>
     </main>
-
-    <nav class="bottom-nav">
-      <button data-view="today" class="nav-btn active"><span>⌂</span><em>اليوم</em></button>
-      <button data-view="money" class="nav-btn"><span>◫</span><em>فلوسي</em></button>
-      <button data-view="schedule" class="nav-btn"><span>▦</span><em>جدولي</em></button>
-      <button data-view="me" class="nav-btn"><span>♡</span><em>أنا</em></button>
-    </nav>
+    <nav class="bottom-nav"><button data-view="today" class="nav-btn active"><span>⌂</span><em>اليوم</em></button><button data-view="money" class="nav-btn"><span>◫</span><em>فلوسي</em></button><button data-view="schedule" class="nav-btn"><span>▦</span><em>جدولي</em></button><button data-view="me" class="nav-btn"><span>♡</span><em>أنا</em></button></nav>
   </div>
 
-  <dialog id="expenseDialog" class="sheet">
-    <form id="expenseForm" method="dialog" class="sheet-body">
-      <div class="sheet-head"><div><p class="kicker">ثواني بس</p><h3>سجلّي مصروف</h3></div><button type="button" class="close-dialog">×</button></div>
-      <label class="big-field">كام؟
-        <input name="amount" type="number" step="0.01" inputmode="decimal" placeholder="0" required />
-      </label>
-      <div class="segmented" id="expenseScope">
-        <button type="button" data-scope="personal" class="active">شخصي</button>
-        <button type="button" data-scope="business">شغل</button>
-      </div>
-      <input name="scope" type="hidden" value="personal" />
-      <label>الفئة
-        <select name="category" required></select>
-      </label>
-      <label>ملاحظة <span class="subtle">اختياري</span>
-        <input name="note" maxlength="200" />
-      </label>
-      <input name="date" type="hidden" />
-      <button class="btn primary wide" type="submit">حفظ المصروف</button>
-    </form>
-  </dialog>
+  <dialog id="expenseDialog" class="sheet"><form id="expenseForm" method="dialog" class="sheet-body"><div class="sheet-head"><div><p class="kicker">ثواني بس</p><h3>سجلّي مصروف</h3></div><button type="button" class="close-dialog">×</button></div><label class="big-field">كام؟<input name="amount" type="number" step="0.01" inputmode="decimal" placeholder="0" required /></label><div class="segmented" id="expenseScope"><button type="button" data-scope="personal" class="active">شخصي</button><button type="button" data-scope="business">شغل</button></div><input name="scope" type="hidden" value="personal" /><label>الفئة<select name="category" required></select></label><label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" /></label><input name="date" type="hidden" /><button class="btn primary wide" type="submit">حفظ المصروف</button></form></dialog>
 
-  <dialog id="incomeDialog" class="sheet">
-    <form id="incomeForm" method="dialog" class="sheet-body">
-      <div class="sheet-head"><div><p class="kicker">استثناء فقط</p><h3>دخل غير الحصص</h3></div><button type="button" class="close-dialog">×</button></div>
-      <label class="big-field">المبلغ
-        <input name="amount" type="number" step="0.01" inputmode="decimal" required />
-      </label>
-      <label>جاي من إيه؟
-        <select name="category">
-          <option value="course">كورس</option>
-          <option value="extra_group">مجموعة إضافية</option>
-          <option value="materials">مواد تعليمية</option>
-          <option value="bonus">مكافأة</option>
-          <option value="other">أخرى</option>
-        </select>
-      </label>
-      <label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" /></label>
-      <input name="date" type="hidden" />
-      <button class="btn primary wide" type="submit">حفظ الدخل</button>
-    </form>
-  </dialog>
+  <dialog id="incomeDialog" class="sheet"><form id="incomeForm" method="dialog" class="sheet-body"><div class="sheet-head"><div><p class="kicker">استثناء فقط</p><h3>دخل غير الحصص</h3></div><button type="button" class="close-dialog">×</button></div><label class="big-field">المبلغ<input name="amount" type="number" step="0.01" inputmode="decimal" required /></label><label>جاي من إيه؟<select name="category"><option value="course">كورس</option><option value="extra_group">مجموعة إضافية</option><option value="materials">مواد تعليمية</option><option value="bonus">مكافأة</option><option value="other">أخرى</option></select></label><label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" /></label><input name="date" type="hidden" /><button class="btn primary wide" type="submit">حفظ الدخل</button></form></dialog>
 
-  <dialog id="sessionDialog" class="sheet">
-    <form id="sessionForm" method="dialog" class="sheet-body">
-      <input name="id" type="hidden" />
-      <div class="sheet-head"><div><p class="kicker">إعداد مرة واحدة</p><h3 id="sessionDialogTitle">طالب / مجموعة جديدة</h3></div><button type="button" class="close-dialog">×</button></div>
-      <label>الاسم
-        <input name="title" placeholder="مثال: مريم" required />
-      </label>
-      <label>نوع الحصة
-        <select name="session_type" required>
-          <option value="private_student_home">خاص عند الطالب</option>
-          <option value="private_sozan_home">خاص عندي</option>
-          <option value="online">أونلاين</option>
-          <option value="center_group">مجموعة السنتر</option>
-          <option value="own_group">مجموعة خاصة</option>
-        </select>
-      </label>
-      <div class="two-col">
-        <label>اليوم
-          <select name="weekday">
-            <option value="0">الأحد</option><option value="1">الإثنين</option><option value="2">الثلاثاء</option>
-            <option value="3">الأربعاء</option><option value="4">الخميس</option><option value="5">الجمعة</option><option value="6">السبت</option>
-          </select>
-        </label>
-        <label>الساعة<input name="start_time" type="time" required /></label>
-      </div>
-      <label class="big-field">سعر الحصة
-        <input name="price" type="number" step="0.01" inputmode="decimal" required />
-      </label>
-      <details class="advanced">
-        <summary>تفاصيل إضافية</summary>
-        <div class="two-col">
-          <label>مدة الحصة بالدقائق<input name="duration_minutes" type="number" value="60" min="15" step="5" /></label>
-          <label>وقت الانتقال بالدقائق<input name="travel_minutes" type="number" value="0" min="0" step="5" /></label>
-          <label>عدد الأطفال<input name="student_count" type="number" value="1" min="1" /></label>
-          <label>نسبة السنتر %<input name="center_cut_percent" type="number" value="0" min="0" max="100" step="0.1" /></label>
-        </div>
-        <label>السعر ده
-          <select name="price_basis"><option value="total_session">للحصة كلها</option><option value="per_student">لكل طفل</option></select>
-        </label>
-        <label>المكان<input name="location" /></label>
-      </details>
-      <button class="btn primary wide" type="submit">حفظ</button>
-      <button id="stopSessionBtn" class="btn danger wide hidden" type="button">إيقاف الحصة من الجدول</button>
-    </form>
-  </dialog>
+  <dialog id="sessionDialog" class="sheet"><form id="sessionForm" method="dialog" class="sheet-body"><input name="id" type="hidden" /><div class="sheet-head"><div><p class="kicker">إعداد مرة واحدة</p><h3 id="sessionDialogTitle">طالب / مجموعة جديدة</h3></div><button type="button" class="close-dialog">×</button></div><div id="sessionEditHint" class="hint-card hidden">التعديل هنا يطبّق على المواعيد القادمة فقط. الحصص القديمة والمدفوعات لا تتغير.</div><label>الاسم<input name="title" placeholder="مثال: مريم" required /></label><label>نوع الحصة<select name="session_type" required><option value="private_student_home">خاص عند الطالب</option><option value="private_sozan_home">خاص عندي</option><option value="online">أونلاين</option><option value="center_group">مجموعة السنتر</option><option value="own_group">مجموعة خاصة</option></select></label><div class="two-col"><label>اليوم<select name="weekday"><option value="0">الأحد</option><option value="1">الإثنين</option><option value="2">الثلاثاء</option><option value="3">الأربعاء</option><option value="4">الخميس</option><option value="5">الجمعة</option><option value="6">السبت</option></select></label><label>الساعة<input name="start_time" type="time" required /></label></div><label class="big-field">سعر الحصة<input name="price" type="number" step="0.01" inputmode="decimal" required /></label><details class="advanced"><summary>تفاصيل إضافية</summary><div class="two-col"><label>مدة الحصة بالدقائق<input name="duration_minutes" type="number" value="60" min="15" step="5" /></label><label>وقت الانتقال بالدقائق<input name="travel_minutes" type="number" value="0" min="0" step="5" /></label><label>عدد الأطفال<input name="student_count" type="number" value="1" min="1" /></label><label>نسبة السنتر %<input name="center_cut_percent" type="number" value="0" min="0" max="100" step="0.1" /></label></div><label>السعر ده<select name="price_basis"><option value="total_session">للحصة كلها</option><option value="per_student">لكل طفل</option></select></label><label>المكان<input name="location" /></label></details><button class="btn primary wide" type="submit">حفظ</button><button id="stopSessionBtn" class="btn danger wide hidden" type="button">إيقاف الحصة من الجدول</button></form></dialog>
 
-  <dialog id="cashDialog" class="sheet">
-    <form id="cashForm" method="dialog" class="sheet-body">
-      <div class="sheet-head"><div><p class="kicker">مطابقة بسيطة</p><h3>معاكي فعليًا كام؟</h3></div><button type="button" class="close-dialog">×</button></div>
-      <p class="subtle">اكتبي تقديرك للمبلغ الموجود عندك الآن. البرنامج هيقارن بينه وبين اللي المفروض يكون موجود حسب التسجيل.</p>
-      <label class="big-field">الموجود فعليًا
-        <input name="actual_balance" type="number" step="0.01" inputmode="decimal" required />
-      </label>
-      <button class="btn primary wide" type="submit">قارن</button>
-    </form>
-  </dialog>
+  <dialog id="rescheduleDialog" class="sheet"><form id="rescheduleForm" method="dialog" class="sheet-body"><input name="occurrence_id" type="hidden" /><div class="sheet-head"><div><p class="kicker">حصة واحدة فقط</p><h3>نقل موعد <span id="rescheduleName"></span></h3></div><button type="button" class="close-dialog">×</button></div><p class="subtle">ده لا يغيّر الجدول الأسبوعي. بيتغيّر الموعد ده فقط.</p><div class="two-col"><label>اليوم الجديد<input name="date" type="date" required /></label><label>الساعة الجديدة<input name="time" type="time" required /></label></div><label>ملاحظة <span class="subtle">اختياري</span><input name="note" maxlength="200" placeholder="مثال: طلب ولي الأمر" /></label><button class="btn primary wide" type="submit">نقل الحصة</button></form></dialog>
 
-  <div id="toast" class="toast"></div>
-  <script type="module" src="/app.js"></script>
-</body>
-</html>
+  <dialog id="paymentCorrectionDialog" class="sheet"><form id="paymentCorrectionForm" method="dialog" class="sheet-body"><input name="occurrence_id" type="hidden" /><div class="sheet-head"><div><p class="kicker">تصحيح آمن</p><h3>تصحيح دفع <span id="paymentCorrectionName"></span></h3></div><button type="button" class="close-dialog">×</button></div><p id="paymentCorrectionHint" class="subtle"></p><label class="big-field">المبلغ الصحيح اللي اتقبض فعليًا<input name="received_total" type="number" step="0.01" min="0" inputmode="decimal" required /></label><label>سبب التصحيح <span class="subtle">اختياري</span><input name="reason" maxlength="200" placeholder="مثال: ضغطت مدفوع بالغلط" /></label><p class="subtle">لو كتبتي 0، التحصيل المسجل يتلغى محاسبيًا لكن يفضل محفوظ في السجل كمعلومة تاريخية.</p><button class="btn primary wide" type="submit">حفظ التصحيح</button></form></dialog>
+
+  <dialog id="cashDialog" class="sheet"><form id="cashForm" method="dialog" class="sheet-body"><div class="sheet-head"><div><p class="kicker">مطابقة بسيطة</p><h3>معاكي فعليًا كام؟</h3></div><button type="button" class="close-dialog">×</button></div><p class="subtle">اكتبي تقديرك للمبلغ الموجود عندك الآن. البرنامج هيقارن بينه وبين اللي المفروض يكون موجود حسب التسجيل.</p><label class="big-field">الموجود فعليًا<input name="actual_balance" type="number" step="0.01" inputmode="decimal" required /></label><button class="btn primary wide" type="submit">قارن</button></form></dialog>
+
+  <div id="toast" class="toast"></div><script type="module" src="/app.js"></script>
+</body></html>
