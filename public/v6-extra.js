@@ -15,7 +15,7 @@ function showLoginLoading(){
 }
 function hideLoginLoading(){const x=$e('#v6LoginLoading');if(x){x.style.opacity='0';x.style.pointerEvents='none';setTimeout(()=>x.remove(),220)}V6E.loadOverlay=null}
 const originalFetch=window.fetch.bind(window);
-window.fetch=async(...args)=>{const res=await originalFetch(...args);try{const raw=typeof args[0]==='string'?args[0]:args[0]?.url||'',u=new URL(raw,location.href);if(res.ok&&['/api/v4/dashboard','/api/v3/dashboard','/api/v3/today'].includes(u.pathname))hideLoginLoading()}catch{}return res};
+window.fetch=async(...args)=>{const res=await originalFetch(...args);try{const raw=typeof args[0]==='string'?args[0]:args[0]?.url||'',u=new URL(raw,location.href);if(res.ok&&['/api/v4/dashboard','/api/v3/dashboard','/api/v3/today'].includes(u.pathname))hideLoginLoading();if(res.ok&&u.pathname==='/api/v6/schedule-range'){const d=await res.clone().json();d.items=(d.items||[]).filter(x=>x.status!=='cancelled');return new Response(JSON.stringify(d),{status:res.status,headers:{'content-type':'application/json; charset=utf-8'}})}}catch{}return res};
 $e('#loginForm')?.addEventListener('submit',()=>showLoginLoading(),true);
 
 async function patchProfile(){
