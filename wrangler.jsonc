@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "sozan-tutor-os",
-  "main": "src/runtime-entry.js",
+  "main": "src/migration-entry.js",
   "compatibility_date": "2026-09-01",
   "assets": {
     "directory": "./public",
