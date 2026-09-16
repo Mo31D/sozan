@@ -1,5 +1,5 @@
-const CACHE='sozan-v6-2-performance';
-const STATIC=['/','/index.html','/styles.css','/app.js','/schedule-view.js','/v6-extra.js','/runtime-pre.js','/runtime-post.js','/manifest.webmanifest','/icon.svg'];
+const CACHE='sozan-v6-3-smart-schedule';
+const STATIC=['/','/index.html','/styles.css','/app.js','/schedule-view.js','/v6-extra.js','/availability-v2.js','/runtime-pre.js','/runtime-post.js','/manifest.webmanifest','/icon.svg'];
 
 self.addEventListener('install',event=>{
   self.skipWaiting();
