@@ -30,7 +30,7 @@ export default{
       const auth=await authProbe(request,runEnv,ctx);if(auth)return auth;
       return quickSchedule(request,runEnv.DB,Number(quick[1]));
     }
-    if(path==='/api/v7/planner-week'&&method==='GET')return plannerWeek(request,runEnv,ctx);
+    if((path==='/api/v7/planner-week'||path==='/api/v6/schedule-range')&&method==='GET')return plannerWeek(request,runEnv,ctx);
 
     const normalEdit=path.match(/^\/api\/v3\/sessions\/(\d+)$/),body=normalEdit&&method==='PATCH'?await safeJson(request.clone()):null;
     const response=await app.fetch(request,runEnv,ctx);
