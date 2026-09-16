@@ -119,21 +119,20 @@ async function quickSchedule(request,db,id){
 async function packageState(db,studentId){
   const plan=await db.prepare(`SELECT * FROM student_billing_v6 WHERE student_id=?1`).bind(studentId).first();
   if(!plan||plan.billing_mode!=='package')return{billing_mode:'per_session'};
-  const cycle=await db.prepare(`SELECT c.*,COUNT(x.id) completed FROM package_cycles_v6 c LEFT JOIN package_cycle_occurrences_v6 x ON x.cycle_id=c.id WHERE c.student_id=?1 GROUP BY c.id ORDER BY CASE c.status WHEN 'open' THEN 0 WHEN 'due' THEN 1 ELSE 2 END,c.cycle_no DESC LIMIT 1`).bind(studentId).first();
+  const cycle=await db.prepare(`SELECT c.*,COUNT(x.id) completed FROM package_cycles_v6 c LEFT JOIN package_cycle_occurrences_v6 x ON x.cycle_id=c.id WHERE c.student_id=?1 AND c.status IN ('open','due') GROUP BY c.id ORDER BY CASE c.status WHEN 'open' THEN 0 ELSE 1 END,c.cycle_no DESC LIMIT 1`).bind(studentId).first();
   const opening=await db.prepare(`SELECT * FROM package_opening_progress_v7 WHERE student_id=?1`).bind(studentId).first();
-  let completed=0,start=plan.cycle_anchor_date||todayLondon(),cycleNo=1,status='open';
-  if(cycle){completed=Number(cycle.completed||0);start=cycle.started_on||start;cycleNo=Number(cycle.cycle_no||1);status=cycle.status||'open'}
-  else{const n=await db.prepare(`SELECT COALESCE(MAX(cycle_no),0)+1 n FROM package_cycles_v6 WHERE student_id=?1`).bind(studentId).first();cycleNo=Number(n?.n||1)}
-  if(opening&&Number(opening.cycle_id)===Number(cycle?.id||0)){start=opening.cycle_start_date||start}
+  let completed=0,start=plan.cycle_anchor_date||todayLondon(),cycleNo=1,status='open',openingCompleted=0;
+  if(cycle){completed=Number(cycle.completed||0);start=cycle.started_on||start;cycleNo=Number(cycle.cycle_no||1);status=cycle.status||'open';if(opening&&Number(opening.cycle_id)===Number(cycle.id)){start=opening.cycle_start_date||start;openingCompleted=Number(opening.opening_completed||0)}}
+  else{const n=await db.prepare(`SELECT COALESCE(MAX(cycle_no),0)+1 n FROM package_cycles_v6 WHERE student_id=?1`).bind(studentId).first();cycleNo=Number(n?.n||1);start=todayLondon()}
   const size=Number(plan.package_size||8),remaining=Math.max(0,size-completed);
-  return{billing_mode:'package',package_size:size,package_price_pence:Number(plan.package_price_pence||0),cycle_no:cycleNo,cycle_start_date:start,opening_completed:Number(opening?.opening_completed||0),completed,remaining,next_position:remaining?Math.min(size,completed+1):size,status};
+  return{billing_mode:'package',package_size:size,package_price_pence:Number(plan.package_price_pence||0),cycle_no:cycleNo,cycle_start_date:start,opening_completed:openingCompleted,completed,remaining,next_position:remaining?Math.min(size,completed+1):size,status};
 }
 
 async function applyOpeningProgress(db,studentId,startValue,doneValue){
   const plan=await db.prepare(`SELECT * FROM student_billing_v6 WHERE student_id=?1`).bind(studentId).first();
   if(!plan||plan.billing_mode!=='package')return{ok:true,ignored:true};
   const size=Math.max(1,Number(plan.package_size||8)),done=Math.max(0,Math.min(size,Math.round(Number(doneValue)||0))),start=validDate(startValue)||todayLondon();
-  let cycle=await db.prepare(`SELECT * FROM package_cycles_v6 WHERE student_id=?1 AND status='open' ORDER BY cycle_no DESC LIMIT 1`).bind(studentId).first();
+  let cycle=await db.prepare(`SELECT * FROM package_cycles_v6 WHERE student_id=?1 AND status IN ('open','due') ORDER BY CASE status WHEN 'open' THEN 0 ELSE 1 END,cycle_no DESC LIMIT 1`).bind(studentId).first();
   let opening=await db.prepare(`SELECT * FROM package_opening_progress_v7 WHERE student_id=?1`).bind(studentId).first();
   if(!cycle){
     const last=await db.prepare(`SELECT COALESCE(MAX(cycle_no),0)+1 n FROM package_cycles_v6 WHERE student_id=?1`).bind(studentId).first();
@@ -141,15 +140,27 @@ async function applyOpeningProgress(db,studentId,startValue,doneValue){
     cycle=await db.prepare(`SELECT * FROM package_cycles_v6 WHERE id=?1`).bind(Number(r.meta?.last_row_id||0)).first();
     opening=null;
   }
-  const shadowId=opening&&Number(opening.cycle_id)===Number(cycle.id)?Number(opening.shadow_session_id):0;
-  const real=await db.prepare(`SELECT COUNT(*) c FROM package_cycle_occurrences_v6 x JOIN session_occurrences_v3 o ON o.id=x.occurrence_id JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id WHERE x.cycle_id=?1 AND r.title<>?2`).bind(cycle.id,OPENING_MARK).first();
-  if(Number(real?.c||0)>0&&opening&&done!==Number(opening.opening_completed||0))return{error:'بعد ما بدأ تسجيل حصص جديدة في الدورة، رقم البداية يفضل ثابت. صححي الحصة من سجل الطالب لو لزم.'};
+  const sameOpening=opening&&Number(opening.cycle_id)===Number(cycle.id)?opening:null;
+  const shadowId=sameOpening?Number(sameOpening.shadow_session_id):0;
+  const real=await db.prepare(`SELECT COUNT(*) c FROM package_cycle_occurrences_v6 x JOIN session_occurrences_v3 o ON o.id=x.occurrence_id JOIN recurring_sessions_v3 r ON r.id=o.recurring_session_id WHERE x.cycle_id=?1 AND r.title<>?2`).bind(cycle.id,OPENING_MARK).first(),realCount=Number(real?.c||0);
+  if(realCount>0&&sameOpening&&done!==Number(sameOpening.opening_completed||0))return{error:'بعد ما بدأ تسجيل حصص جديدة في الدورة، رقم البداية يفضل ثابت. الحصص المسجلة داخل البرنامج محفوظة بالفعل.'};
+  if(realCount>0&&!sameOpening&&done>0)return{error:'الدورة دي بدأ تسجيلها داخل البرنامج بالفعل؛ رقم البداية الإضافي غير مطلوب.'};
+
+  if(done===0&&!sameOpening){
+    const total=realCount,due=total>=size||cycle.status==='due';
+    await db.batch([
+      db.prepare(`UPDATE student_billing_v6 SET cycle_anchor_date=?1,updated_at=CURRENT_TIMESTAMP WHERE student_id=?2`).bind(start,studentId),
+      db.prepare(`UPDATE package_cycles_v6 SET started_on=?1,status=?2,completed_on=CASE WHEN ?2='due' THEN COALESCE(completed_on,?1) ELSE NULL END,updated_at=CURRENT_TIMESTAMP WHERE id=?3`).bind(start,due?'due':'open',cycle.id)
+    ]);
+    return{ok:true,completed:total,size};
+  }
+
   let hidden=shadowId;
   if(!hidden){
     const r=await db.prepare(`INSERT INTO recurring_sessions_v3(student_id,title,session_type,weekday,start_time,duration_minutes,price_type,price_basis,price_pence,student_count,center_cut_percent,travel_minutes,location,active) VALUES(?1,?2,'online',0,'00:00',15,'per_session','total_session',0,1,0,0,?2,0)`).bind(studentId,OPENING_MARK).run();
     hidden=Number(r.meta?.last_row_id||0);
   }
-  if(Number(real?.c||0)===0){
+  if(realCount===0){
     await db.prepare(`DELETE FROM package_cycle_occurrences_v6 WHERE cycle_id=?1 AND occurrence_id IN (SELECT id FROM session_occurrences_v3 WHERE recurring_session_id=?2)`).bind(cycle.id,hidden).run();
     await db.prepare(`DELETE FROM session_occurrences_v3 WHERE recurring_session_id=?1`).bind(hidden).run();
     for(let i=1;i<=done;i++){
@@ -157,15 +168,15 @@ async function applyOpeningProgress(db,studentId,startValue,doneValue){
       await db.prepare(`INSERT INTO package_cycle_occurrences_v6(cycle_id,occurrence_id,position,earned_pence) VALUES(?1,?2,?3,0)`).bind(cycle.id,Number(o.meta?.last_row_id||0),i).run();
     }
   }
-  const due=done>=size;
+  const totalCompleted=Math.min(size,done+realCount),due=totalCompleted>=size||cycle.status==='due';
   await db.batch([
     db.prepare(`UPDATE student_billing_v6 SET cycle_anchor_date=?1,updated_at=CURRENT_TIMESTAMP WHERE student_id=?2`).bind(start,studentId),
     db.prepare(`UPDATE package_cycles_v6 SET started_on=?1,status=?2,completed_on=CASE WHEN ?2='due' THEN COALESCE(completed_on,?1) ELSE NULL END,updated_at=CURRENT_TIMESTAMP WHERE id=?3`).bind(start,due?'due':'open',cycle.id),
     db.prepare(`INSERT INTO package_opening_progress_v7(student_id,cycle_id,shadow_session_id,cycle_start_date,opening_completed) VALUES(?1,?2,?3,?4,?5) ON CONFLICT(student_id) DO UPDATE SET cycle_id=excluded.cycle_id,shadow_session_id=excluded.shadow_session_id,cycle_start_date=excluded.cycle_start_date,opening_completed=excluded.opening_completed,updated_at=CURRENT_TIMESTAMP`).bind(studentId,cycle.id,hidden,start,done)
   ]);
   if(due)await allocateExistingCredit(db,studentId,cycle.id,Number(cycle.package_price_pence||plan.package_price_pence||0));
-  await scheduleLog(db,hidden,`بداية باقة الطالب ${done}/${size}`,`تاريخ بداية الدورة ${start}`);
-  return{ok:true,completed:done,size};
+  await packageLog(db,studentId,`بداية الباقة ${done}/${size}`,`تاريخ بداية الدورة ${start}`);
+  return{ok:true,completed:totalCompleted,size};
 }
 
 async function allocateExistingCredit(db,studentId,cycleId,price){
@@ -176,15 +187,12 @@ async function allocateExistingCredit(db,studentId,cycleId,price){
   if(need<=0)await db.prepare(`UPDATE package_cycles_v6 SET status='paid',paid_on=COALESCE(paid_on,CURRENT_TIMESTAMP),updated_at=CURRENT_TIMESTAMP WHERE id=?1`).bind(cycleId).run();
 }
 
-async function scheduleLog(db,id,title,detail){
-  await db.prepare(`INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable) VALUES('session',?1,'updated',?2,?3,0)`).bind(id,title,detail).run();
-}
+async function scheduleLog(db,id,title,detail){await db.prepare(`INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable) VALUES('session',?1,'updated',?2,?3,0)`).bind(id,title,detail).run()}
+async function packageLog(db,studentId,title,detail){await db.prepare(`INSERT INTO activity_events_v4(entity_type,entity_id,action,title,detail,undoable) VALUES('student',?1,'updated',?2,?3,0)`).bind(studentId,title,detail).run()}
 
 async function canUseFastPath(db){
   if(fastCompatibilityCheck)return fastCompatibilityCheck;
-  fastCompatibilityCheck=(async()=>{
-    try{const legacy=await db.prepare(`SELECT 1 found FROM recurring_sessions_v3 WHERE price_type='monthly' LIMIT 1`).first();return !legacy}catch(e){console.warn('Sozan fast path disabled; using compatibility mode.',e);return false}
-  })();
+  fastCompatibilityCheck=(async()=>{try{const legacy=await db.prepare(`SELECT 1 found FROM recurring_sessions_v3 WHERE price_type='monthly' LIMIT 1`).first();return !legacy}catch(e){console.warn('Sozan fast path disabled; using compatibility mode.',e);return false}})();
   return fastCompatibilityCheck;
 }
 
@@ -209,7 +217,7 @@ function noopResult(){return{success:true,meta:{duration:0,changes:0,last_row_id
 function validTime(v){return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v||''))?String(v):null}
 function validDate(v){return /^\d{4}-\d{2}-\d{2}$/.test(String(v||''))?String(v):null}
 function weekdayLabel(n){return['الأحد','الإثنين','الثلاثاء','الأربعاء','الخميس','الجمعة','السبت'][Number(n)]||''}
-function openingSyntheticDate(i){return`1900-01-${String(Math.min(28,Math.max(1,i))).padStart(2,'0')}`}
+function openingSyntheticDate(i){const d=new Date(Date.UTC(1900,0,1));d.setUTCDate(d.getUTCDate()+Math.max(0,Number(i||1)-1));return d.toISOString().slice(0,10)}
 function todayLondon(){const p=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()),g=t=>p.find(x=>x.type===t)?.value;return`${g('year')}-${g('month')}-${g('day')}`}
 async function safeJson(r){try{return await r.json()}catch{return null}}
 function json(data,status=200){return new Response(JSON.stringify(data),{status,headers:JSON_HEADERS})}
